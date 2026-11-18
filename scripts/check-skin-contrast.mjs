@@ -194,14 +194,6 @@ const PAIRS = [
 ];
 
 const skins = parseSkins(css);
-// Midnight faithfully keeps two upstream contrast gaps. They may improve, but
-// must not get worse; every other below-target pair is a regression.
-const BASELINE_FLOORS = new Map([
-  ["midnight|--color-accent-ink|--color-accent", 3.65],
-  ["midnight|--color-danger-ink|--color-danger", 3.10],
-]);
-const BASELINE_DRIFT = 0.01;
-
 let failed = false;
 for (const [id, tokens] of skins) {
   const problems = [];
@@ -222,29 +214,24 @@ for (const [id, tokens] of skins) {
     measured++;
     if (ratio < min) problems.push({ fg, bg, ratio, min });
   }
-  let skinFailed = missing.length > 0 || unmeasurable.length > 0;
+  const skinFailed = missing.length > 0 || unmeasurable.length > 0 || problems.length > 0;
+  if (!skinFailed) {
+    console.log(`✓ ${id} — ${measured} pairs, none below target`);
+    continue;
+  }
+  failed = true;
   if (missing.length) {
     console.log(`✗ ${id} — undefined token(s): ${[...new Set(missing)].join(", ")}`);
   }
   for (const { fg, bg, fgValue, bgValue } of unmeasurable) {
     console.log(`✗ ${id} — cannot measure ${fg} on ${bg} (${fgValue} on ${bgValue})`);
   }
-  if (problems.length === 0) {
-    if (!skinFailed) console.log(`✓ ${id} — ${measured} pairs, none below target`);
-    if (skinFailed) failed = true;
-    continue;
+  if (problems.length > 0) {
+    console.log(`✗ ${id}`);
+    for (const { fg, bg, ratio, min } of problems) {
+      console.log(`    ${fg} on ${bg}: ${ratio.toFixed(2)}:1 (needs ${min}:1)`);
+    }
   }
-  for (const { fg, bg, ratio } of problems) {
-    const floor = BASELINE_FLOORS.get(`${id.replace(/ \(phone\)$/, "")}|${fg}|${bg}`);
-    if (floor === undefined || ratio < floor - BASELINE_DRIFT) skinFailed = true;
-  }
-  console.log(`${skinFailed ? "✗" : "~"} ${id}${skinFailed ? "" : " (known upstream gaps)"}`);
-  for (const { fg, bg, ratio, min } of problems) {
-    const floor = BASELINE_FLOORS.get(`${id.replace(/ \(phone\)$/, "")}|${fg}|${bg}`);
-    const baseline = floor === undefined ? "" : `; baseline ${floor.toFixed(2)}:1`;
-    console.log(`    ${fg} on ${bg}: ${ratio.toFixed(2)}:1 (needs ${min}:1${baseline})`);
-  }
-  if (skinFailed) failed = true;
 }
 
 // The window's frame is the sidebar's colour in every skin, so the top bar, the rail and the sidebar read as one field;
