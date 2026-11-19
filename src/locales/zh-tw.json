@@ -1919,7 +1919,7 @@
   "teamSettings.addPerson": "新增他們",
   "teamSettings.removePerson": "移除他們",
   "teamSettings.accessHint": "管理員和各機器人的擁有者一律可以使用和變更它。",
-  "teamSettings.skip.ownMausBot": "它是某人自己的 MausBot",
+  "teamSettings.skip.ownMausBot": "這是某人自己的預設助理",
   "teamSettings.skip.cantShare": "你無法變更誰可以使用它",
   "teamSettings.customPerBot": "自訂核准仍是個別機器人的設定，請在該機器人的設定中調整。",
   "teamSettings.allThreads": "每個機器人的所有對話都會套用這個層級。",

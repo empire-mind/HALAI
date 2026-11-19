@@ -9856,7 +9856,7 @@
   "teamSettings.personAction": "添加或移除",
   "teamSettings.addPerson": "添加对方",
   "teamSettings.removePerson": "移除对方",
-  "teamSettings.skip.ownMausBot": "这是某人自己的 MausBot",
+  "teamSettings.skip.ownMausBot": "这是某人自己的默认助手",
   "teamSettings.skip.cantShare": "你无法更改谁可以使用它",
   "orgLibrary.newerRelease": "版本 {version} 可用。下载完成后它会自行更新，并保留你的改动。",
   "inbox.row.count": "收件箱，{count} 项待处理",

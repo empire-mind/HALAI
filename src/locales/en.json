@@ -2156,7 +2156,7 @@
   "teamSettings.addPerson": "Add them",
   "teamSettings.removePerson": "Remove them",
   "teamSettings.accessHint": "Admins and each bot's owner can always use and change it.",
-  "teamSettings.skip.ownMausBot": "it's someone's own MausBot",
+  "teamSettings.skip.ownMausBot": "it's someone's own default assistant",
   "teamSettings.skip.cantShare": "you can't change who can use it",
   "teamSettings.customPerBot": "Custom approval stays a per-bot setting in that bot's settings.",
   "teamSettings.allThreads": "Each bot gets this level on every one of its threads.",

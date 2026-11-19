@@ -1965,7 +1965,7 @@
   "teamSettings.addPerson": "Adicionar",
   "teamSettings.removePerson": "Remover",
   "teamSettings.accessHint": "Os admins e o dono de cada bot sempre podem usá-lo e alterá-lo.",
-  "teamSettings.skip.ownMausBot": "é o MausBot próprio de alguém",
+  "teamSettings.skip.ownMausBot": "é o assistente padrão pessoal de alguém",
   "teamSettings.skip.cantShare": "você não pode mudar quem pode usá-lo",
   "teamSettings.customPerBot": "A aprovação personalizada continua sendo definida nas configurações de cada bot.",
   "teamSettings.allThreads": "Este nível vale para todas as conversas de cada bot.",

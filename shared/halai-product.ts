@@ -7,4 +7,5 @@ export const HALAI_PRODUCT = {
   repository: "https://github.com/empire-mind/HALAI",
   mark: "/app-icon.svg",
   tagline: "A workspace for your AI team",
+  defaultAssistantName: "HALAI Assistant",
 } as const;

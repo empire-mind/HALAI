@@ -8,7 +8,7 @@ import type { InstanceInfo } from "@/state/store";
 
 const f = vi.hoisted(() => ({
   instances: [] as InstanceInfo[], dispatch: vi.fn(), row: null as null | { bridge: unknown; onOpenSettings: () => void },
-  check: (): Promise<object> => Promise.resolve({ ok: true }), checks: [] as string[], fail: false, config: {} as Record<string, unknown>, brand: "default", opened: [] as string[],
+  check: (): Promise<object> => Promise.resolve({ ok: true }), checks: [] as string[], fail: false, config: {} as Record<string, unknown>, brand: "default", brandName: "OpenMausBot", opened: [] as string[],
 }));
 vi.mock("@/state/store", () => ({
   api: async (path: string) => {
@@ -20,7 +20,7 @@ vi.mock("@/state/store", () => ({
   useStore: () => ({ state: { instances: f.instances, config: f.config }, dispatch: f.dispatch }),
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn(), emailGateDone: () => false }));
-vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ source: f.brand }), productName: () => "MausBot" }));
+vi.mock("@/lib/brand", () => ({ brandStatus: () => ({ source: f.brand, brand: { name: f.brandName } }), productName: () => "MausBot" }));
 vi.mock("@/lib/app-links", async (original) => ({ ...await original<typeof import("@/lib/app-links")>(), openExternalLink: async (url: string) => { f.opened.push(url); } }));
 vi.mock("@/components/EngineSetup", async () => {
   const { createElement: h } = await import("react");
@@ -66,7 +66,7 @@ beforeEach(() => {
   f.check = () => Promise.resolve({ ok: true });
   f.checks = [];
   f.instances = [engine("grok", "grokAgent", "Grok", false), engine("claude", "claudeAgent", "Claude", false), engine("codex", "codex", "Codex", false)];
-  f.dispatch.mockReset(); f.config = {}; f.brand = "default"; f.opened = [];
+  f.dispatch.mockReset(); f.config = {}; f.brand = "default"; f.brandName = "OpenMausBot"; f.opened = [];
   vi.mocked(track).mockClear();
   f.row = null;
   f.fail = false;
@@ -281,6 +281,15 @@ describe("the ModelGo option", () => {
   const option = () => host.querySelector("[data-modelgo-option]");
   const events = () => vi.mocked(track).mock.calls.filter(([name]) => name === "modelgo_offer").map(([, props]) => props);
   const provider = (ready = false) => engine("modelgo", "modelgo", "ModelGo (API)", ready);
+
+  it("lists a configured option in HALAI without an OpenMausBot sponsor card", async () => {
+    f.brandName = "HALAI";
+    f.instances.push(provider());
+    await show();
+    expect(option()).toBeNull();
+    expect(text()).toContain("ModelGo (API)");
+    expect(events()).toEqual([]);
+  });
 
   it("sits among the other ways, labelled a sponsor, and its link opens exactly the sponsor's address", async () => {
     f.instances.push(provider());
