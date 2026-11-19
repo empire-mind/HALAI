@@ -10,7 +10,7 @@ import {
   NEXT_MANAGED_COMPANION_HOST_SUFFIX,
   desktopCompanionAccess,
   desktopCompanionRendererArguments,
-  desktopCompanionProxyTarget,
+  desktopCompanionProxyPath,
   normalizeTailscaleCompanionEndpoint,
   normalizeDesktopCompanionEndpoint,
   pairDesktopCompanion,
@@ -246,13 +246,9 @@ describe("desktop companion pairing", () => {
 });
 
 describe("desktop companion loopback relay", () => {
-  it("pins absolute-form and network-path requests to the paired origin", () => {
-    expect(desktopCompanionProxyTarget(access.endpoint, "http://evil.test/api/bots?x=1").href).toBe(
-      `${access.endpoint}/api/bots?x=1`,
-    );
-    expect(desktopCompanionProxyTarget(access.endpoint, "//evil.test/api/events").href).toBe(
-      `${access.endpoint}/api/events`,
-    );
+  it("extracts only the path and query from a relay request target", () => {
+    expect(desktopCompanionProxyPath("/api/bots?x=1")).toBe("/api/bots?x=1");
+    expect(desktopCompanionProxyPath("http://client.test/api/events")).toBe("/api/events");
   });
 
   it("serves the UI only on loopback and never includes the bearer in the page", async () => {
