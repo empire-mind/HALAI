@@ -17,7 +17,7 @@ function workspace(overrides: Record<string, unknown> = {}) {
     "/api/bots?messages=0": { bots },
     "/api/paused": { heldBots: ["bot-a"] },
     "/.well-known/openmausbot/environment": { label: "HALAI QA", version: "fixture" },
-    "/api/computers/boxes": { instances: [{ ownerBotId: "bot-a", state: "awake", name: "worker", address: "fixture-private-note" }] },
+    "/api/computers/inventory": { instances: [{ ownerBotId: "bot-a", state: "awake", name: "worker", address: "fixture-private-note" }] },
     ...overrides,
   };
   const request = vi.fn(async (path: string, init?: RequestInit, base?: string) => {
@@ -56,11 +56,13 @@ describe("read-only workspace commands", () => {
   });
 
   it("keeps unavailable cloud information distinct from an empty inventory", async () => {
-    const incomplete = workspace({ "/api/computers/boxes": Object.assign(new Error("administrator scope required"), { status: 403 }) });
+    const incomplete = workspace({ "/api/computers/inventory": Object.assign(new Error("administrator scope required"), { status: 403 }) });
     expect(await incomplete.run("computers", "list")).toMatchObject({
       cloudKnown: false, bots: [{ id: "bot-a", cloud: null }],
     });
-    expect(await workspace({ "/api/computers/boxes": { instances: [] } }).run("computers", "list")).toMatchObject({ cloudKnown: true });
+    expect(await workspace({ "/api/computers/inventory": { instances: [] } }).run("computers", "list")).toMatchObject({ cloudKnown: true });
+    expect(await workspace({ "/api/computers/inventory": { configured: true, available: false, instances: [] } })
+      .run("computers", "list")).toMatchObject({ cloudKnown: false });
   });
 
   it("asks for a unique bot id when names collide", async () => {

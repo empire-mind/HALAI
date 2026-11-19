@@ -2,6 +2,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as boat from "../boat.ts";
 import type { AppConfig } from "../config.ts";
 import type { RequestAuth } from "../request-auth.ts";
 import type { BotRecord } from "../store.ts";
@@ -9,17 +10,25 @@ import * as vps from "../vps-computer.ts";
 import { createComputerRoutes, type ComputerRouteDeps } from "./computers.ts";
 import { PASS, type RouteContext } from "./table.ts";
 
+vi.mock("../boat.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../boat.ts")>();
+  return { ...actual, listManagedBoats: vi.fn() };
+});
+
 vi.mock("../vps-computer.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../vps-computer.ts")>();
   return { ...actual, removeManagedVpsComputer: vi.fn() };
 });
 
 const remove = vi.mocked(vps.removeManagedVpsComputer);
+const inventory = vi.mocked(boat.listManagedBoats);
 const CONTAINER = "openmausbot-vps-test-abc123";
 
 beforeEach(() => {
   remove.mockReset();
   remove.mockResolvedValue({ removed: true, name: CONTAINER });
+  inventory.mockReset();
+  inventory.mockResolvedValue({ configured: false, available: false, problem: null, instances: [] });
 });
 
 function fixture(bots: BotRecord[], cfg: AppConfig) {
@@ -57,6 +66,25 @@ function fixture(bots: BotRecord[], cfg: AppConfig) {
 
 const cfgWith = (sshAlias: string): AppConfig => ({ vps: { sshAlias } }) as AppConfig;
 const botWith = (vpsAlias?: string): BotRecord => ({ id: "bot-1", vpsAlias }) as BotRecord;
+
+it.each([
+  ["/api/computers/inventory", false],
+  ["/api/computers/boxes", true],
+] as const)("reads %s with the documented legacy handling", async (path, adoptLegacy) => {
+  const cfg = {} as AppConfig;
+  const handler = createComputerRoutes({
+    cfg, managedBoatOwners: () => [],
+    routines: () => null,
+  } as unknown as ComputerRouteDeps);
+  const res = { setHeader: vi.fn() } as unknown as ServerResponse;
+  const json = vi.fn();
+  await handler({
+    req: {} as IncomingMessage, res, url: new URL(`http://localhost${path}`), path, method: "GET",
+    auth: { kind: "loopback", scopes: ["admin"] }, json, readBody: vi.fn(),
+  });
+  expect(inventory).toHaveBeenCalledWith(cfg, [], { adoptLegacy });
+  expect(json).toHaveBeenCalledWith(res, 200, { configured: false, available: false, problem: null, instances: [] });
+});
 
 describe("POST /api/computers/vps/:name/remove", () => {
   it("refuses an alias no bot or default uses without touching SSH", async () => {

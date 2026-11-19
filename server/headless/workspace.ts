@@ -1,5 +1,5 @@
 import { HALAI_PRODUCT } from "../../shared/halai-product.ts";
-import { EXIT, HeadlessError, usageError } from "./args.ts";
+import { EXIT, usageError } from "./args.ts";
 import type { HeadlessClient } from "./client.ts";
 import type { VerbContext, VerbOutcome } from "./context.ts";
 
@@ -47,7 +47,7 @@ function namedBot(bots: readonly WorkspaceBot[], name: string): WorkspaceBot {
   const named = bots.filter((bot) => bot.name.trim().toLowerCase() === name.toLowerCase());
   if (named.length === 1) return named[0]!;
   if (named.length > 1) throw usageError(`"${name}" names ${named.length} bots`, "use the bot id shown by openmausbot bots");
-  throw new HeadlessError(`no bot named "${name}"`, EXIT.notFound, "list the workspace bots with openmausbot bots");
+  throw usageError(`no bot named "${name}"`, "list the workspace bots with openmausbot bots");
 }
 
 async function selectedBot(ctx: VerbContext): Promise<{ client: HeadlessClient; bot: WorkspaceBot }> {
@@ -133,7 +133,7 @@ export async function listThreads(ctx: VerbContext): Promise<VerbOutcome> {
 export async function listComputers(ctx: VerbContext): Promise<VerbOutcome> {
   const client = await ctx.client();
   const [bots, inventory] = await Promise.all([
-    botsIn(client), client.json<{ instances?: CloudComputer[] }>("/api/computers/boxes").catch(() => null),
+    botsIn(client), client.json<{ instances?: CloudComputer[]; configured?: boolean; available?: boolean }>("/api/computers/inventory").catch(() => null),
   ]);
   const boxes = new Map((inventory?.instances ?? []).map((box) => [box.ownerBotId, box]));
   const rows = bots.map((bot) => {
@@ -141,7 +141,7 @@ export async function listComputers(ctx: VerbContext): Promise<VerbOutcome> {
     return { id: bot.id, name: bot.name, computer: computerLabel(bot), cloud: box ? { state: box.state ?? null, name: box.name ?? null } : null };
   });
   return {
-    result: { bots: rows, cloudKnown: inventory !== null },
+    result: { bots: rows, cloudKnown: inventory !== null && (inventory.configured === false || inventory.available !== false) },
     exitCode: EXIT.done,
     human: rows.length ? rows.map((row) => `${row.name} · ${row.computer}${row.cloud?.state ? ` · ${row.cloud.state}` : ""}`) : ["No bots yet."],
   };

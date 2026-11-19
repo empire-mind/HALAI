@@ -208,10 +208,10 @@ export function createComputerRoutes(deps: ComputerRouteDeps): RouteHandler {
       return json(res, 405, { error: "method not allowed" });
     }
 
-    // Read-only; lifecycle changes are revalidated against a fresh provider listing. The path keeps its historical /boxes segment.
-    if (method === "GET" && path === "/api/computers/boxes") {
+    if (method === "GET" && (path === "/api/computers/boxes" || path === "/api/computers/inventory")) {
       res.setHeader("cache-control", "private, no-store");
-      const inventory = await boat.listManagedBoats(cfg, managedBoatOwners());
+      // API consumers of inventory can read through a legacy migration without triggering it.
+      const inventory = await boat.listManagedBoats(cfg, managedBoatOwners(), { adoptLegacy: path === "/api/computers/boxes" });
       // A computer that stopped answering is not shown running, whatever the provider still says.
       return json(res, 200, { ...inventory, instances: inventory.instances.map((instance) =>
         boatHealth.notRespondingSince(instance.boxId) === null ? instance : { ...instance, state: "error" }) });
