@@ -23,6 +23,7 @@ import { savedStateAction, type SavedOwner, type SavedSnapshot } from "./saved-s
 import { keepBotNavigation, keepGroupNavigation, navigatedSince, visibleMessages } from "./snapshot-navigation";
 export { visibleMessages } from "./snapshot-navigation";
 export { awayFromMainThread, botOpensTo, markedThread, openBot, openBotRow, openBotThread, openRoomThread, openThread, visibleNotificationThread, type ThreadTarget } from "./thread-navigation";
+import { reduceWorkspaceView, type WorkspaceViewAction } from "./workspace-view";
 import type { TurnDigest } from "../../shared/digest";
 import type { ToolScope } from "../../shared/tool-scope";
 import type { ModelVariantOption, RuntimeEvent } from "../../shared/runtime-events";
@@ -507,7 +508,7 @@ export interface AppState {
   liveCallVersion: number;
   liveCallLookupSeq: number;
   selectedId: string;
-  activeView: "chat" | "team-map" | "routines" | "files" | "web-panel" | "published-apps" | "team-files" | "announcements";
+  activeView: "chat" | "workbench" | "team-map" | "routines" | "files" | "web-panel" | "published-apps" | "team-files" | "announcements";
   /** Folders a finished move left on this computer, for Files to offer sharing. */
   filesSuggest: string[] | null; webPanelId?: string;
   routines: Routine[];
@@ -590,8 +591,7 @@ export type Action =
   | { type: "botsOrdered"; botIds: string[] } | { type: "groupsOrdered"; groupIds: string[] }
   | { type: "sectionDeleted"; section: string; sections: string[] }
   | { type: "showRoutines"; section?: "schedule" | "logs"; view?: "calendar" | "list"; botId?: string; routineId?: string; runStatus?: RoutineRunStatusFilter }
-  | { type: "showTeamMap" } | { type: "showPublishedApps" } | { type: "showTeamFiles" } | { type: "showAnnouncements" } | { type: "showWebPanel"; id: string }
-  | { type: "showFiles"; suggest?: string[] }
+  | WorkspaceViewAction
   | { type: "showChat" }
   | { type: "routinesHydrated"; routines: Routine[]; runs: RoutineRun[]; since?: number }
   | { type: "routinesLoadFailed" } | { type: "routineRunsLoaded"; runs: RoutineRun[]; from?: number; to?: number }
@@ -942,14 +942,10 @@ export function reducer(state: AppState, action: Action): AppState {
     case "forkMessage": case "openForkPanel": case "forkPanelLoaded": case "forkPanelLoadFailed":
     case "forkPanelMessage": case "forkPanelActive": case "closeForkPanel":
       return reduceForkPanel(state, action);
+    case "showWorkbench":
     case "showTeamMap":
     case "showFiles": case "showWebPanel": case "showPublishedApps": case "showTeamFiles": case "showAnnouncements":
-      return {
-        ...state,
-        activeView: action.type === "showFiles" ? "files" : action.type === "showWebPanel" ? "web-panel" : action.type === "showPublishedApps" ? "published-apps" : action.type === "showTeamFiles" ? "team-files" : action.type === "showAnnouncements" ? "announcements" : "team-map",
-        filesSuggest: action.type === "showFiles" && action.suggest?.length ? action.suggest : null, webPanelId: action.type === "showWebPanel" ? action.id : state.webPanelId,
-        settingsOpen: false, computerOpen: false, inspectorOpen: false, activityOpen: false, appSettingsOpen: false, pluginsOpen: false,
-      };
+      return reduceWorkspaceView(state, action);
     case "routinesHydrated":
       return { ...state, routines: action.routines, routineRuns: trimRoutineRuns(action.runs), routineRunsSince: action.since ?? null, routinesLoadState: "ready" };
     case "routinesLoadFailed":
@@ -2194,7 +2190,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
 
     const wrapped: React.Dispatch<Action> = (action) => {
-      store.flushFrames(); if (["select", "newTask", "switchTask", "newGroupTask", "switchGroupTask", "showChat", "showRoutines", "showTeamMap", "showFiles", "showWebPanel", "showPublishedApps", "showTeamFiles", "showAnnouncements"].includes(action.type)) selectionRevision.current++;
+      store.flushFrames(); if (["select", "newTask", "switchTask", "newGroupTask", "switchGroupTask", "showChat", "showWorkbench", "showRoutines", "showTeamMap", "showFiles", "showWebPanel", "showPublishedApps", "showTeamFiles", "showAnnouncements"].includes(action.type)) selectionRevision.current++;
       // Pin before any await or optimistic state change.
       action = pinBotThreadAction(action, stateRef.current.bots);
       if (action.type === "taskSwitched") action = { ...action, bot: withTaskWrites(action.bot) as Bot };
