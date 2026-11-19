@@ -14,6 +14,7 @@ import { CONTROL_BUSY, CONTROL_REFUSAL_PLAIN, controlRefusal, createControlClien
 import { freePortBlock } from "./testing/ports.ts";
 import { readHandoffs } from "./testing/handoff-rows.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 import { appHandsItOver } from "./testing/your-computer.ts";
 import { THIS_COMPUTER_NOT_READY } from "../shared/your-computer.ts";
 
@@ -41,8 +42,8 @@ const api = async (method: string, path: string, body?: unknown) => {
   expect(r.ok, `${method} ${path}: ${JSON.stringify(result)}`).toBe(true);
   return result;
 };
-async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean): Promise<T> {
-  const end = Date.now() + 15_000;
+async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean, timeoutMs = 15_000): Promise<T> {
+  const end = Date.now() + timeoutMs;
   for (;;) {
     const value = await read();
     if (accept(value)) return value;
@@ -137,9 +138,9 @@ beforeAll(async () => {
     child.stdout!.on("data", () => {});
     child.stderr!.on("data", c => { stderr += c; });
     await until(async () => {
-      if (child.exitCode !== null) throw new Error(stderr);
-      try { return (await fetch(base + "/api/health")).ok; } catch { return false; }
-    }, Boolean);
+      if (child.exitCode !== null || child.signalCode !== null) throw new Error(`Fixture server exited: ${child.exitCode ?? child.signalCode}\n${stderr}`);
+      try { return (await fetch(base + "/api/health", { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
+    }, Boolean, hostTimeout(15_000));
     await stepDownSeededChief();
   };
   await startServer();
