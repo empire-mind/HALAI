@@ -74,8 +74,12 @@ async function officialBinary() {
   }
   const archive = join(cache, release.file);
   await writeFile(archive, bytes);
-  await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-    "Expand-Archive -LiteralPath $env:OMB_CUA_ARCHIVE -DestinationPath $env:OMB_CUA_EXTRACT"], {
+  // Windows PowerShell 5.1 inherits Core module paths from a pwsh build.
+  const extract = [
+    "$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')",
+    "Expand-Archive -LiteralPath $env:OMB_CUA_ARCHIVE -DestinationPath $env:OMB_CUA_EXTRACT -ErrorAction Stop",
+  ].join("\n");
+  await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", extract], {
     env: { ...process.env, OMB_CUA_ARCHIVE: archive, OMB_CUA_EXTRACT: cache },
     timeout: 60_000,
     windowsHide: true,
