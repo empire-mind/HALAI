@@ -54,12 +54,12 @@ describe("the Teams popup", () => {
     expect(buttons(popup)).toEqual(["Invite your team", "See Team plans", "Not now", "Close"]);
   });
 
-  it("links every audience to the website's Team plans", async () => {
+  it("links every audience to HALAI's Team plan information", async () => {
     for (const action of [{ kind: "start", inApp: false, url: "https://cloud.example/pro/buy" }, { kind: "got-it" }, { kind: "invite", url: "https://admin.example/people" }] as TeamsAction[]) {
       const popup = await show(action);
       const link = [...popup.querySelectorAll("button")].find(button => button.textContent === "See Team plans");
       await act(async () => { link!.click(); });
-      expect(opened.at(-1), action.kind).toBe("https://www.openmausbot.com/pricing#teams");
+      expect(opened.at(-1), action.kind).toBe("https://github.com/empire-mind/HALAI/blob/main/docs/halai-release.md#business-rollout");
       expect(onStep, action.kind).toHaveBeenLastCalledWith("see_team_plans");
       await act(async () => root?.unmount()); root = null;
     }
