@@ -23,12 +23,14 @@ const INSTANCES = { fixture: { driver: "hosted-access-test-shadow" }, claude: {
   driver: "claudeAgent", config: { cli: join(ROOT, "server/testing/fake-claude-cli.ts") },
 } };
 let home: string;
+let data: string;
+let fixtureLayer: string;
 let stateFile: string;
 let child: ChildProcess | undefined;
 let log = "";
-let pairedToken: string;
+let pairedToken = "";
 let fixtureCookies: { admin: string; member: string };
-let fixtureSessionIds: readonly string[];
+let fixtureSessionIds: readonly string[] = [];
 let fixtureEnv: NodeJS.ProcessEnv;
 let policyBotId: string | undefined;
 const policyEvidence: unknown[] = [];
@@ -88,8 +90,9 @@ async function login() {
   expect(callback.status).toBe(302);
   return callback.cookies.find((value) => !value.startsWith("__Host-"))!.split(";")[0];
 }
-async function restart(env: NodeJS.ProcessEnv = {}) {
+async function restart(env: NodeJS.ProcessEnv = {}, withFixtureSessions = true) {
   await waitForExit(child, { signal: "SIGTERM" });
+  if (withFixtureSessions) seedFixtureSessions();
   child = spawn(process.execPath, [join(ROOT, "server/index.ts")], { cwd: ROOT, env: { ...fixtureEnv, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   child.stdout?.on("data", (chunk) => log += chunk); child.stderr?.on("data", (chunk) => log += chunk);
   const deadline = Date.now() + 20_000;
@@ -118,36 +121,42 @@ function installAccessHook(layer: string, accessHook: string) {
   `);
 }
 
-beforeAll(async () => {
-  if (!HAS_ENTERPRISE_ACCESS) console.info("Hosted portal exchange and revocation checks require enterprise/server/workspace-access.ts.");
-  PORT = await freePortBlock([0, 1], 35_000, 5_000);
-  home = mkdtempSync(join(tmpdir(), "omb-hosted-server-"));
-  stateFile = join(home, "portal-fixture.json"); state();
-  const data = join(home, ".openmausbot");
-  const layer = join(home, "fixture-layer");
-  mkdirSync(join(home, "static"));
-  writeFileSync(join(home, "static", "index.html"), "<!doctype html><title>Fixture workspace</title>");
+function seedFixtureSessions() {
+  // A Windows child stopped by its parent cannot run the normal session close handler.
   const sessions = new SessionRegistry({ file: join(data, "sessions.json"), portalMembership: true });
-  pairedToken = sessions.issue({ label: "Pre-existing QR device", scopes: ["admin", "client"] }).token;
+  for (const id of fixtureSessionIds) sessions.revoke(id);
+  if (!pairedToken) pairedToken = sessions.issue({ label: "Pre-existing QR device", scopes: ["admin", "client"] }).token;
   const admin = sessions.issuePortal({ email: EMAIL, grant: "a".repeat(43), scopes: ["admin", "client"] });
   const member = sessions.issuePortal({ email: FIXTURE_MEMBER_EMAIL, grant: "m".repeat(43), scopes: ["client"] });
   sessions.close();
   const cookieName = sessionCookieName(PORT, loadEnvironmentId(data));
   fixtureCookies = { admin: `${cookieName}=${admin.token}`, member: `${cookieName}=${member.token}` };
   fixtureSessionIds = [admin.session.id, member.session.id];
-  writeFileSync(join(data, "config.json"), JSON.stringify({ signIn: { admins: [EMAIL], members: [FIXTURE_MEMBER_EMAIL] }, instances: INSTANCES }));
-  installAccessHook(layer, `
+  installAccessHook(fixtureLayer, `
     import { createFixtureWorkspaceAccess } from ${JSON.stringify(new URL("./testing/hosted-access-fixture.ts", import.meta.url).href)};
     export function createWorkspaceAccess(options) {
       return createFixtureWorkspaceAccess(options, ${JSON.stringify(fixtureSessionIds)});
     }
   `);
+}
+
+beforeAll(async () => {
+  if (!HAS_ENTERPRISE_ACCESS) console.info("Hosted portal exchange and revocation checks require enterprise/server/workspace-access.ts.");
+  PORT = await freePortBlock([0, 1], 35_000, 5_000);
+  home = mkdtempSync(join(tmpdir(), "omb-hosted-server-"));
+  stateFile = join(home, "portal-fixture.json"); state();
+  data = join(home, ".openmausbot");
+  fixtureLayer = join(home, "fixture-layer");
+  mkdirSync(join(home, "static"));
+  writeFileSync(join(home, "static", "index.html"), "<!doctype html><title>Fixture workspace</title>");
+  mkdirSync(data, { recursive: true });
+  writeFileSync(join(data, "config.json"), JSON.stringify({ signIn: { admins: [EMAIL], members: [FIXTURE_MEMBER_EMAIL] }, instances: INSTANCES }));
   fixtureEnv = {
     ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
     ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-    HOME: home, USERPROFILE: home, OMB_PORT: String(PORT), OMB_WEBHOOK_PORT: String(PORT + 1),
+    HOME: home, USERPROFILE: home, OMB_DATA_DIR: data, OMB_PORT: String(PORT), OMB_WEBHOOK_PORT: String(PORT + 1),
     OMB_STATIC_DIR: join(home, "static"), OMB_BROWSER_CONNECTION: join(home, "browser-connection.json"),
-    OMB_ENTERPRISE_DIR: layer, OMB_LICENSE_KEY: "fixture-only", OMB_ADMIN_URL: "https://admin.example.test",
+    OMB_ENTERPRISE_DIR: fixtureLayer, OMB_LICENSE_KEY: "fixture-only", OMB_ADMIN_URL: "https://admin.example.test",
     OMB_ADMIN_WORKSPACE: "acme", OMB_PUBLIC_URL: `https://${HOST}`, OMB_ADMIN_MEMBERSHIP: "portal",
     // These cases set fixtures up over loopback, so they keep the owner; the hosted default (service) has its own case.
     OMB_LOOPBACK_TRUST: "owner",
@@ -180,6 +189,16 @@ describe("hosted HTTP policy with a fixture access hook", () => {
     expect(readiness.body).toEqual({ ok: true, service: "openmausbot", membershipAuthority: "portal", workspace: "acme", ...HOSTED_CONTRACT_METADATA });
     expect(readiness.contractVersion).toBe("1");
     expect(readiness.cookies).toEqual([]);
+  });
+  it("uses fresh fixture sessions after an abrupt stop", async () => {
+    const prior = fixtureCookies.admin;
+    expect((await call("/api/auth/session", { cookie: prior })).status).toBe(200);
+    await waitForExit(child, { signal: "SIGKILL" });
+    await restart();
+    expect((await call("/api/auth/session", { cookie: prior })).status).toBe(401);
+    expect(await call("/api/auth/session", { cookie: fixtureCookies.admin })).toMatchObject({
+      status: 200, body: { scopes: ["admin", "client"] },
+    });
   });
   it("keeps an Azure Live call to a workspace admin, in plain words, and never takes a local request for one", async () => {
     const botId = await policyBot();
@@ -410,7 +429,7 @@ describe.runIf(HAS_ENTERPRISE_ACCESS)("hosted portal exchange and revocation wit
         } });
       }
     `);
-    await restart({ OMB_ENTERPRISE_DIR: layer, OMB_ADMIN_MEMBERSHIP: undefined });
+    await restart({ OMB_ENTERPRISE_DIR: layer, OMB_ADMIN_MEMBERSHIP: undefined }, false);
   });
 
   it("redirects hosted navigation to portal sign-in and keeps local navigation available", async () => {
@@ -453,7 +472,7 @@ describe.runIf(HAS_ENTERPRISE_ACCESS)("hosted portal exchange and revocation wit
     await waitForExit(child, { signal: "SIGTERM" });
     state();
     writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({ signIn: { admins: [], members: [] }, instances: INSTANCES }));
-    await restart({ OMB_ENTERPRISE_DIR: layer });
+    await restart({ OMB_ENTERPRISE_DIR: layer }, false);
     const readiness = await call("/api/health/hosted");
     expect(readiness.status).toBe(200);
     expect(readiness.body).toEqual({ ok: true, service: "openmausbot", membershipAuthority: "portal", workspace: "acme", ...HOSTED_CONTRACT_METADATA });
