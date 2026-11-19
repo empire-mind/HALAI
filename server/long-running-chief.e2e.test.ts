@@ -162,7 +162,7 @@ async function chiefJob(test: (f: any) => Promise<void>) {
       closeSync(log);
       await expect.poll(async () => {
         try { return (await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(1_000) })).ok; } catch { return false; }
-      }, { timeout: 30_000 }).toBe(true);
+      }, { timeout: hostTimeout(30_000) }).toBe(true);
       await listen();
     };
     await test({ api, bot, dataDir, clive, mira, eli, compat, script, newJob, say, tree, root, child, eventsOf, turns, turn, prompt,
