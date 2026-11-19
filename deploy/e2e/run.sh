@@ -6,9 +6,9 @@
 # ends in .internal, for which Caddy issues a certificate of its own CA at once, so HTTPS through Caddy is checked too:
 # after every way the server restarts without Caddy, and after the documented backup and restore.
 # The files the installer places (update.sh, the sandbox's host preparation) come from this checkout. Where the image
-# runs the hardened profile the bots' sandbox must be on and hold: a bot cannot read config.json. With
-# OMB_INSTALL_IMAGE set (the workflow builds this checkout's image and serves it from a registry on the runner), that
-# image is installed instead of the published release.
+# runs the hardened profile the bots' sandbox must be on and hold: a bot cannot read config.json. OMB_INSTALL_IMAGE
+# selects the workflow's pinned image or the image built from this checkout and served from a registry on the runner.
+# An unset value follows the public release channel.
 #   OUT=<evidence folder> bash deploy/e2e/run.sh
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
@@ -17,7 +17,7 @@ mkdir -p "$OUT"
 DOMAIN=installer-e2e.internal
 DIR=/opt/openmausbot
 SETTINGS=(OMB_INSTALL_SKIP_DNS=1 OMB_INSTALL_HTTPS_WAIT_S=20 "OMB_INSTALL_SOURCE=file://$ROOT")
-# Without a version asked for: what a person's later run is, which must keep the version update.sh pinned.
+# Use the unqualified command to check that the installer keeps a digest pinned by update.sh.
 # Under umask 000, as a root shell may have it: what the installer makes must not take its modes from there.
 UMASK_000=(sh -c "umask 000; exec sh \"\$0\" \"\$@\"")
 PLAIN_INSTALL=(sudo env "${SETTINGS[@]}" "${UMASK_000[@]}" "$ROOT/deploy/install.sh")
@@ -103,7 +103,7 @@ prepare_like_a_server
 step "the checks alone, with a name that points nowhere: one thing to fix, nothing changed"
 status=0
 containers_before=$(sudo docker ps -aq | sort)
-as_root sh "$ROOT/deploy/install.sh" --check --domain "$DOMAIN" >"$OUT/check.txt" 2>&1 || status=$?
+as_root env "OMB_INSTALL_IMAGE=${OMB_INSTALL_IMAGE:-}" sh "$ROOT/deploy/install.sh" --check --domain "$DOMAIN" >"$OUT/check.txt" 2>&1 || status=$?
 cat "$OUT/check.txt"
 [ "$status" = 1 ] || fail "--check exited $status, not 1"
 [ "$(grep -c '^  FIX   ' "$OUT/check.txt")" = 1 ] || fail "--check found more than the DNS record to fix"
