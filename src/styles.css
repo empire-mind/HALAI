@@ -251,10 +251,6 @@
    (rather than relying on the `@theme` defaults) so that a `[data-skin]`
    subtree can switch *back* to it — the picker needs that.
 
-   Two upstream contrast gaps are preserved deliberately, because this skin's
-   job is to be the original: white on the accent fill measures 3.65:1 and
-   white on the danger fill 3.32:1, both short of AA for the 13–15px labels
-   they carry. Atelier and Foundry fix this via --color-accent-ink.
    ───────────────────────────────────────────────────────────────────────── */
 [data-skin="midnight"] {
   --code-color-scheme: dark;
@@ -277,12 +273,12 @@
   --color-accent: #1084fe;
   --color-accent-border: #459ffe;
   --color-accent-text: #7fc0ff;
-  --color-accent-ink: #ffffff;
+  --color-accent-ink: #10182b;
   --color-bubble-user: #5a5a5a;
   --color-bubble-user-ink: #f5f5f5;   /* = ink: unchanged */
   --color-success: #38d591;
   --color-danger: #ff5667;
-  --color-danger-ink: #ffffff;
+  --color-danger-ink: #251014;
   --color-success-ink: #072114;
   --color-warning: #ff9800;
   --color-scrollbar: #3d3d3d;
