@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 import { EVALS_LANE, PACKAGED_SERVER_LANE, vitestLane } from "./ci-linux-lanes.mjs";
 import { SELECTABLE_JOBS, vitestMatrix } from "./ci-scope.mjs";
 import { interpolate } from "./testing/github-expression.ts";
@@ -154,6 +157,62 @@ describe("CI concurrency", () => {
     expect(readFileSync(new URL("./release-ci.mjs", import.meta.url), "utf8")).toContain(`job.name === "${workflow.jobs.gate.name}"`);
     // The release lane is a branch, so its runs get their own concurrency group.
     expect(workflow.on).toHaveProperty("workflow_dispatch");
+  });
+
+  it("checks the packaged desktop feed against the HALAI release repository on every platform", () => {
+    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const builder = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+    expect(builder.publish).toEqual([{ provider: "github", owner: "empire-mind", repo: "HALAI" }]);
+    for (const platform of ["mac", "windows", "linux"]) {
+      const commands = release.jobs[platform].steps.map((step: { run?: string }) => step.run).join("\n");
+      expect(commands).toMatch(/node scripts\/verify-desktop-update-feed\.mjs .*app-update\.yml/);
+      expect(commands).not.toContain("milind-soni");
+    }
+  });
+
+  it("keeps HALAI desktop releases on the canonical repository without a legacy mirror", () => {
+    const releaseURL = new URL("../.github/workflows/release.yml", import.meta.url);
+    const release = parse(readFileSync(releaseURL, "utf8"));
+    const prepared = readFileSync(new URL("../.github/workflows/prepare-release.yml", import.meta.url), "utf8");
+    const mirror = parse(readFileSync(new URL("../.github/workflows/sync-published-release.yml", import.meta.url), "utf8"));
+    const npm = parse(readFileSync(new URL("../.github/workflows/npm-package.yml", import.meta.url), "utf8"));
+    expect(release.jobs.prepare.if).toBe("github.repository == 'empire-mind/HALAI'");
+    expect(JSON.stringify(release)).not.toMatch(/RELEASES_PAT|milind-soni|npm-package\.yml/);
+    expect(prepared).not.toMatch(/RELEASES_PAT|milind-soni/);
+    expect(mirror.jobs.mirror.if).toMatch(/^github.repository == 'milind-soni\/OpenMausBot' && /);
+    expect(npm.jobs["publish-npm"].if).toMatch(/^github.repository == 'milind-soni\/OpenMausBot' && /);
+    const publish = release.jobs.assemble.steps.find((step: { name?: string }) => step.name === "Publish (only when asked to)");
+    expect(publish.if).toBe("${{ inputs.publish }}");
+  });
+
+  it("accepts the configured HALAI feed and rejects a mismatched package or workflow repository", () => {
+    const builder = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+    const fixture = mkdtempSync(join(tmpdir(), "halai-updater-test-"));
+    const metadata = join(fixture, "app-update.yml");
+    const script = fileURLToPath(new URL("./verify-desktop-update-feed.mjs", import.meta.url));
+    const run = (feed: object, repository = "empire-mind/HALAI") => {
+      writeFileSync(metadata, stringify(feed));
+      return spawnSync(process.execPath, [script, metadata], {
+        env: { ...process.env, GITHUB_REPOSITORY: repository },
+        encoding: "utf8",
+        timeout: 5_000,
+      });
+    };
+    try {
+      const [feed] = builder.publish;
+      expect(run(feed)).toMatchObject({ status: 0, stdout: expect.stringContaining("empire-mind/HALAI") });
+      for (const override of [
+        { owner: "milind-soni", repo: "OpenMausBot" },
+        { host: "updates.example.test" },
+        { protocol: "http" },
+        { private: true },
+      ]) {
+        expect(run({ ...feed, ...override })).toMatchObject({ status: 1, stderr: expect.stringContaining("public HTTPS updater feed") });
+      }
+      expect(run(feed, "milind-soni/OpenMausBot")).toMatchObject({ status: 1, stderr: expect.stringContaining("Desktop releases belong to empire-mind/HALAI") });
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
   });
 
   it("checks out every module the release gate imports", () => {

@@ -3,7 +3,7 @@ productName: OpenMausBot
 artifactName: OpenMausBot-${version}-${arch}.${ext}
 
 protocols:
-  - name: OpenMausBot package install
+  - name: HALAI package install
     schemes: [openmausbot]
 
 # In-app auto-update reads latest-mac.yml + the .zip (macOS) or latest.yml +
