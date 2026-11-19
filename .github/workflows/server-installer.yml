@@ -60,7 +60,9 @@ jobs:
         run: |
           set -euo pipefail
           if ! grep -q 'OMB_IMAGE=server' Dockerfile; then
-            echo 'image=ghcr.io/milind-soni/openmausbot@sha256:7fe048da80c82e77b7615567200209457aee3b093b200cc1cd5833bb723941ce' >> "$GITHUB_OUTPUT"
+            image=$(cat deploy/e2e/installer-reference-image.txt)
+            test -n "$image"
+            printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           docker run -d --name installer-registry -p 127.0.0.1:5000:5000 registry:2 >/dev/null
