@@ -59,7 +59,11 @@ const WAITING = {
 
 const VERBS: Record<string, { options: ParseArgsOptionsConfig; positionals: number }> = {
   doctor: { options: { wait: { type: "string" }, host: { type: "boolean" }, data: { type: "boolean" }, fix: { type: "boolean" }, "data-dir": { type: "string" }, domain: { type: "string" } }, positionals: 0 },
+  status: { options: {}, positionals: 0 },
   bots: { options: {}, positionals: 0 },
+  "bots get": { options: {}, positionals: 1 },
+  "threads list": { options: {}, positionals: 1 },
+  "computers list": { options: {}, positionals: 0 },
   channels: { options: {}, positionals: 0 },
   models: { options: {}, positionals: 0 },
   messages: { options: { ...TARGET, limit: { type: "string" } }, positionals: 1 },
@@ -129,7 +133,14 @@ export interface ParsedCommand {
   positionals: string[];
 }
 
-const SUBCOMMANDS = new Map([["team", ["apply", "export"]], ["engine", ["set", "list"]], ["token", ["create", "list", "revoke"]]]);
+const SUBCOMMANDS = new Map([
+  ["bots", ["get"]],
+  ["threads", ["list"]],
+  ["computers", ["list"]],
+  ["team", ["apply", "export"]],
+  ["engine", ["set", "list"]],
+  ["token", ["create", "list", "revoke"]],
+]);
 
 /** Strict: an unknown flag or a missing value is a usage error (exit 2). */
 export function parseCommand(argv: readonly string[]): ParsedCommand {
@@ -138,7 +149,7 @@ export function parseCommand(argv: readonly string[]): ParsedCommand {
   let verb = head;
   let args = rest;
   const actions = SUBCOMMANDS.get(head);
-  if (actions) {
+  if (actions && (!Object.hasOwn(VERBS, head) || actions.includes(rest[0] ?? ""))) {
     const action = rest[0];
     if (!action || !actions.includes(action)) {
       if (action === "--help" || action === "-h") return { verb: head, flags: { help: true }, positionals: [] };

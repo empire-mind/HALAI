@@ -975,7 +975,12 @@ export async function runOnboardingCommand(
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   if (argv[0] === "sentinel") return runSentinelCli(argv.slice(1));
   if (argv[0] === "config") return runConfigCli(argv.slice(1));
-  if (HEADLESS_VERB_NAMES.has(argv[0] ?? "") || (argv[0] === "help" && HEADLESS_VERB_NAMES.has(argv[1] ?? ""))) return (await import("./headless/main.ts")).runHeadless(argv);
+  const command = argv[0] ?? "";
+  const workspaceStatus = command === "status" && argv.slice(1).some((arg) => arg === "--url" || arg.startsWith("--url="));
+  const headless = HEADLESS_VERB_NAMES.has(command) && command !== "status";
+  if (workspaceStatus || headless || (command === "help" && HEADLESS_VERB_NAMES.has(argv[1] ?? ""))) {
+    return (await import("./headless/main.ts")).runHeadless(argv);
+  }
   const options = parseArgs(argv);
   if ("error" in options) {
     console.error(`${options.error}\nAll commands and options: ${cliCommand("--help")}`);
