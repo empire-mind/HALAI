@@ -27,20 +27,33 @@ test("personal Cloud bridge is desktop-local, contains no capability access, and
 });
 test("production personal Cloud IPC guards exact local main frame and forwards no arguments", async () => {
   const source = readFileSync(new URL("./main.mjs", import.meta.url), "utf8"), start = source.indexOf("const workspaceOnly ="), end = source.indexOf('ipcMain.handle("organization:settings-opened"', start);
+  const cloudGateStart = source.indexOf("function upstreamCloudEnabled() {"), cloudGateEnd = source.indexOf("function ensureCloudAccount() {", cloudGateStart);
   assert.ok(start >= 0 && end > start);
+  assert.ok(cloudGateStart >= 0 && cloudGateEnd > cloudGateStart);
   const handlers = new Map(), calls = [], frame = { url: `${origin}/` }, contents = { mainFrame: frame };
   localOrigin.setLocalOrigin(origin);
   const context = vm.createContext({ ipcMain: { handle: (channel, handler) => handlers.set(channel, handler) },
     localOnly: localOrigin.localOnly, workspaceSenderAllowed: environments.workspaceSenderAllowed, mainWindow: { webContents: contents },
     rendererOrigin: () => origin, environmentsState: { environments: [], activeId: "local" },
+    app: { isPackaged: true }, process: { env: {} }, desktopRemoteAccess: false,
     ensureCloudAccount: () => Object.fromEntries(methods.map(method => [method, (...args) => { calls.push([method, ...args]); return { status: "signed-out" }; }])),
     connectCloudHome: (...args) => { calls.push(["connectHome", ...args]); return { status: "connected" }; },
     accounts: { signOutActive: (...args) => { calls.push(["signOut", ...args]); return { status: "signed-out" }; } },
   });
-  vm.runInContext(source.slice(start, end), context);
+  vm.runInContext(`${source.slice(cloudGateStart, cloudGateEnd)}\n${source.slice(start, end)}`, context);
+  const page = { sender: contents, senderFrame: frame };
+  for (const method of ["state", "refresh"]) {
+    const state = handlers.get(`cloud-account:${method}`)(page);
+    assert.equal(state.status, "unavailable");
+    assert.match(state.message, /Hosted cloud is disabled for this HALAI installation/);
+  }
+  assert.equal(handlers.get("cloud-account:offer")(page), null);
+  assert.deepEqual(calls, []);
+
+  context.process.env.HALAI_ENABLE_UPSTREAM_CLOUD = "1";
   for (const method of bridgeMethods) {
     const handle = handlers.get(`cloud-account:${method}`);
-    await handle({ sender: contents, senderFrame: frame }, { paid: true });
+    await handle(page, { paid: true });
     for (const sender of [{ sender: contents, senderFrame: { url: `${origin}/subframe` } }, { sender: {}, senderFrame: frame },
       { sender: contents, senderFrame: { url: "https://remote.example.test" } }, { sender: contents }]) assert.throws(() => handle(sender), /only available/);
   }

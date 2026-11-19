@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { parse } from "yaml";
 import { cloudTarget } from "./cloud-account.mjs";
 import { myCloudOrigin, rememberedCloudHome, savedCloudHomeOrigin } from "./cloud-home.mjs";
 import { cloudPageSenderAllowed } from "./cloud-home.mjs";
@@ -39,8 +40,11 @@ function mainRule() {
   expect(start).toBeGreaterThanOrEqual(0);
   expect(end).toBeGreaterThan(start);
   expect(source.includes("registerUpdaterIpc({ pageAllowed: updaterPageAllowed, serverPage: event => activePageOrigin(event), confirmRestart: "), "main.mjs wires the updater to updaterPageAllowed").toBe(true);
+  const cloudGateStart = source.indexOf("function upstreamCloudEnabled() {");
   const signInStart = source.indexOf("function ensureCloudAccount() {"), signInEnd = source.indexOf("\n}\n", signInStart) + 3;
-  expect(signInStart).toBeGreaterThanOrEqual(0);
+  expect(cloudGateStart).toBeGreaterThanOrEqual(0);
+  expect(signInStart).toBeGreaterThan(cloudGateStart);
+  expect(signInEnd).toBeGreaterThan(signInStart);
   const window = { isDestroyed: () => false, webContents: null };
   const listeners = new Map();
   const signIn = { options: null, state: { status: "signed-out", message: "restoring" } };
@@ -55,7 +59,7 @@ function mainRule() {
     cloudAccount: { homeTarget: () => ({ origin: CLOUD }), state: () => ({ status: "connected", account: { id: "a1" } }), isOwnCloud: () => false },
     rememberedHome: null, savedCloudHomeOrigin, cloudSignInRestored: true,
     // ensureCloudAccount's world: a packaged app, and a sign-in client whose state the test sets.
-    app: { isPackaged: true, getPath: () => "/unused", getVersion: () => "1.0.0" }, process: { platform: "darwin", env: {} }, cloudTarget,
+    app: { isPackaged: true, getPath: () => "/unused", getVersion: () => "1.0.0" }, process: { platform: "darwin", env: { HALAI_ENABLE_UPSTREAM_CLOUD: "1" } }, cloudTarget,
     path: { join: (...parts) => parts.join("/") }, os: { hostname: () => "mac" }, shell: {}, safeStorage: {},
     createCloudAccountStore: () => ({}), cloudEncryption: {}, cloudAccountStore: () => ({}), cloudSync: { accountChanged: () => {} }, accounts: { tell: () => {} }, rememberCloudHome: () => {}, rememberedCloudHome, computerSharing: null, updatesConsent: null, botLink,
     sendUpdaterState: () => {}, refreshCloudMenus: () => {}, announceCloudReady: () => {}, installCloudPlanIpc: () => {},
@@ -69,7 +73,7 @@ function mainRule() {
       };
     },
   });
-  vm.runInContext(`${source.slice(start, end)}\n${source.slice(signInStart, signInEnd)}`, context);
+  vm.runInContext(`${source.slice(start, end)}\n${source.slice(cloudGateStart, signInEnd)}`, context);
   const show = (shown, activeId = environments.LOCAL_ID) => {
     window.webContents = shown.webContents;
     context.environmentsState = {
@@ -154,6 +158,11 @@ function bridgeFor(origin, { clicked = false, rule = null } = {}) {
   });
   return { bridge, invoked, asked };
 }
+
+it("packages the updater with HALAI's GitHub release feed", () => {
+  const config = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+  expect(config.publish).toEqual([{ provider: "github", owner: "empire-mind", repo: "HALAI" }]);
+});
 
 it("My Cloud's page gets the update bridge, and it restarts the app only on the person's click", async () => {
   const local = bridgeFor(LOCAL);
