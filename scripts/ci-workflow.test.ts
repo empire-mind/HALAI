@@ -34,6 +34,21 @@ function gateNeeds(selected: string[]) {
   };
 }
 
+describe("pnpm bootstrap", () => {
+  it("bootstraps the pinned pnpm after checkout using approved actions", () => {
+    const setup = parse(readFileSync(new URL("../.github/actions/setup-pnpm/action.yml", import.meta.url), "utf8"));
+    expect(setup.runs.using).toBe("composite");
+    expect(setup.runs.steps[0].uses).toMatch(/^actions\/setup-node@[a-f0-9]{40}$/);
+    expect(setup.runs.steps[1].run).toContain("corepack enable pnpm");
+    expect(setup.runs.steps[2].uses).toMatch(/^actions\/cache@[a-f0-9]{40}$/);
+    expect(workflow.jobs.static.steps[1].uses).toBe("./.github/actions/setup-pnpm");
+    expect(workflow.jobs.relay.steps[1]).toEqual({
+      uses: "./.github/actions/setup-pnpm",
+      with: { directory: "relay" },
+    });
+  });
+});
+
 describe("CI concurrency", () => {
   it("supersedes old PR checks but never cancels a running main or merge-queue run", () => {
     expect(workflow.on.push.branches).toEqual(["main"]);
@@ -334,11 +349,10 @@ describe("CI concurrency", () => {
     )).toBe(true);
     for (const [name, job] of Object.entries(workflow.jobs) as [string, { needs?: string | string[]; if?: string }][]) {
       if (["static", "gate"].includes(name)) continue;
-      // The one deploy job: after the control-plane checks, on main pushes only. It is
-      // not part of the merge gate.
+      // The upstream broker deploy runs after the control-plane checks.
       if (name === "deploy-composio-broker") {
         expect(job.needs).toEqual(["control-plane"]);
-        expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+        expect(job.if).toBe("github.repository == 'milind-soni/OpenMausBot' && github.event_name == 'push' && github.ref == 'refs/heads/main'");
         expect(workflow.jobs.gate.needs).not.toContain(name);
         // Without the Cloudflare token the deploy is skipped with a warning, not failed:
         // every step after the token check waits on it.
@@ -349,7 +363,7 @@ describe("CI concurrency", () => {
         for (const step of rest) expect(step.if).toBe("steps.token.outputs.present == 'true'");
         // The broker is typechecked and tested in the same checkout it deploys.
         const runs = rest.map((step) => step.run);
-        const deploy = rest.findIndex((step) => (step as { uses?: string }).uses?.startsWith("cloudflare/wrangler-action@"));
+        const deploy = runs.indexOf("pnpm broker:deploy");
         expect(runs.indexOf("pnpm broker:check")).toBeGreaterThan(-1);
         expect(runs.indexOf("pnpm broker:check")).toBeLessThan(deploy);
         expect(runs.indexOf("pnpm broker:test")).toBeGreaterThan(-1);

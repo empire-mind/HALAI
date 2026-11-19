@@ -165,7 +165,8 @@ describe("CI path scope", () => {
 
   it.each([
     [], [""], ["docs/../server/file.md"], ["./src/App.tsx"],
-    [".github/workflows/ci.yml"], ["scripts/ci-scope.mjs"], ["scripts/testing/host-e2e.ts"], [".gitattributes"],
+    [".github/workflows/ci.yml"], [".github/actions/setup-pnpm/action.yml"], ["scripts/ci-scope.mjs"],
+    ["scripts/testing/host-e2e.ts"], [".gitattributes"],
     ["package.json"], ["pnpm-lock.yaml"], ["pnpm-workspace.yaml"], ["tsconfig.json"], ["vite.config.ts"], [".oxlintrc.json"],
     ["third_party/browser/agent-browser-windows-stdio.patch"], ["scripts/testing/ci-retry-runner.ts"], ["unknown/file"], ["src/App.tsx", "package.json"],
   ])("runs everything for %j", (...files) => {
