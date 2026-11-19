@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { DevsReportPayload } from "./devs-report.ts";
-import { askReportStatus, bugReportEndpoint, bugReportsHomeSignature, bugReportStatusEndpoint, devsStatusAsker, sendDevsReport } from "./devs-report-send.ts";
+import { askReportStatus, bugReportEndpoint, bugReportsHomeSignature, bugReportStatusEndpoint, devsReportSender, devsStatusAsker, sendDevsReport } from "./devs-report-send.ts";
 
 const PAYLOAD: DevsReportPayload = {
   installId: "4b7c1f2e-0a9d-4c2b-9f1e-6d5a4b3c2d1e", source: "bot", description: "it broke", appVersion: "0.1.128", platform: "darwin arm64, desktop app",
@@ -58,13 +58,21 @@ describe("sending a @devs report", () => {
 });
 
 describe("where reports go", () => {
-  it("is a fixture's loopback or https address, else a Cloud home's own origin, else the staging or production Cloud", () => {
+  it("requires a configured endpoint or Cloud home, with an explicit switch for vendor Cloud", () => {
     expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "http://127.0.0.1:4400/api/bug-reports" })).toBe("http://127.0.0.1:4400/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "http://192.0.2.1/api/bug-reports" })).toBe("https://cloud.openmausbot.com/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "https://user:pw@evil.example/x" })).toBe("https://cloud.openmausbot.com/api/bug-reports");
+    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "http://192.0.2.1/api/bug-reports" })).toBeNull();
+    expect(bugReportEndpoint({ OMB_BUG_REPORT_URL: "https://user:pw@evil.example/x" })).toBeNull();
     expect(bugReportEndpoint({}, "https://cloud.openmausbot.com")).toBe("https://cloud.openmausbot.com/api/bug-reports");
-    expect(bugReportEndpoint({ OMB_CLOUD_STAGING: "1" })).toBe("https://omb-cloud-staging.fly.dev/api/bug-reports");
-    expect(bugReportEndpoint({})).toBe("https://cloud.openmausbot.com/api/bug-reports");
+    expect(bugReportEndpoint({ HALAI_ENABLE_UPSTREAM_CLOUD: "1", OMB_CLOUD_STAGING: "1" })).toBe("https://omb-cloud-staging.fly.dev/api/bug-reports");
+    expect(bugReportEndpoint({ HALAI_ENABLE_UPSTREAM_CLOUD: "1" })).toBe("https://cloud.openmausbot.com/api/bug-reports");
+    expect(bugReportEndpoint({})).toBeNull();
+  });
+
+  it("keeps reports and status requests off the network without a configured destination", async () => {
+    const { sent, fetcher } = endpoint();
+    expect(await devsReportSender(null, fetcher)(PAYLOAD)).toMatchObject({ ok: false, retry: false });
+    expect(await devsStatusAsker(null, null, fetcher)({ installId: PAYLOAD.installId, ids: ["r2"] })).toBeNull();
+    expect(sent).toHaveLength(0);
   });
 });
 

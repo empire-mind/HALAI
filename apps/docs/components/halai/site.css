@@ -1,0 +1,144 @@
+.halai-site {
+  --halai-surface: #fff;
+  --halai-paper: #f4f6fc;
+  --halai-ink: #17203a;
+  --halai-muted: #495779;
+  --halai-line: #d5ddee;
+  --halai-accent: #344ac6;
+  --halai-accent-hover: #293cb3;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--halai-surface);
+  color: var(--halai-ink);
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.halai-site main { flex: 1; }
+.halai-container { width: min(100% - 3rem, 71rem); margin-inline: auto; }
+.halai-site :focus-visible { outline: 3px solid var(--halai-accent); outline-offset: 4px; }
+.halai-skip {
+  position: fixed; z-index: 60; inset: 1rem auto auto 1rem;
+  padding: .65rem 1rem; border-radius: .45rem;
+  background: var(--halai-surface); color: var(--halai-ink);
+  transform: translateY(calc(-100% - 2rem));
+}
+.halai-skip:focus { transform: none; }
+.halai-header { background: var(--halai-surface); border-bottom: 1px solid var(--halai-line); }
+.halai-header-grid { display: grid; grid-template-columns: 1fr auto 1fr; min-height: 4.55rem; align-items: center; gap: 1.6rem; }
+.halai-header-grid > .halai-button { justify-self: end; }
+.halai-brand { display: inline-flex; align-items: center; justify-self: start; gap: .68rem; font-size: 1.35rem; font-weight: 760; letter-spacing: -.055em; }
+.halai-header nav, .halai-footer nav { display: flex; align-items: center; flex-wrap: wrap; gap: 1.45rem; font-size: .9rem; font-weight: 560; }
+.halai-header nav a, .halai-footer nav a { color: var(--halai-muted); }
+.halai-header nav a:hover, .halai-footer nav a:hover { color: var(--halai-accent); text-decoration: underline; text-underline-offset: .24em; }
+.halai-button {
+  width: fit-content; min-height: 2.8rem; display: inline-flex; align-items: center; justify-content: center; gap: .58rem;
+  border: 1px solid transparent; border-radius: .5rem; padding: .65rem 1rem;
+  background: var(--halai-accent); color: #fff; font-size: .92rem; line-height: 1.35; font-weight: 650;
+  cursor: pointer;
+}
+.halai-button:hover { background: var(--halai-accent-hover); }
+.halai-button:disabled { cursor: default; opacity: .55; }
+.halai-button-small { min-height: 2.45rem; font-size: .86rem; }
+.halai-button-outline { background: #fff; color: var(--halai-ink); border-color: var(--halai-line); }
+.halai-button-outline:hover { background: var(--halai-paper); }
+.halai-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .7rem; }
+.halai-text-link { display: inline-flex; align-items: center; gap: .35rem; font-size: .95rem; font-weight: 650; color: var(--halai-accent); cursor: pointer; }
+.halai-text-link:hover { text-decoration: underline; text-underline-offset: .24em; }
+
+.halai-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.03fr); align-items: center;
+  gap: clamp(2rem, 5vw, 5rem); padding-block: clamp(3.25rem, 8vw, 6.65rem);
+}
+.halai-site h1, .halai-site h2, .halai-site h3 { font-weight: 720; letter-spacing: -.042em; }
+.halai-hero h1 { font-size: clamp(3rem, 5.6vw, 5.2rem); line-height: 1.035; }
+.halai-hero-copy > p { max-width: 29rem; margin: 1.35rem 0 1.75rem; color: var(--halai-muted); font-size: clamp(1.03rem, 1.8vw, 1.22rem); line-height: 1.65; }
+.halai-hero-copy > .halai-hero-note { margin: .98rem 0 0; font-size: .77rem; }
+.halai-workspace { margin: 0; overflow: hidden; border: 1px solid #24304f; border-radius: .9rem; background: #141e35; color: #f4f6ff; box-shadow: 0 1.3rem 3rem #19264a24; }
+.halai-workspace-top { min-height: 3.1rem; display: flex; align-items: center; gap: .55rem; padding: .6rem .95rem; border-bottom: 1px solid #34415e; font-size: .84rem; }
+.halai-workspace-top span { margin-left: auto; color: #bac5e4; font-size: .71rem; }
+.halai-workspace-body { display: grid; grid-template-columns: 7.65rem minmax(0, 1fr); }
+.halai-workspace-rail { background: #10192f; border-right: 1px solid #34415e; padding: 1.15rem .72rem; }
+.halai-workspace-rail span { display: block; margin: 0 .35rem .55rem; font-size: .7rem; color: #c5d1eb; }
+.halai-workspace-rail b { display: flex; align-items: center; gap: .32rem; padding: .42rem .36rem; border-radius: .3rem; color: #dce4fd; font-size: .78rem; font-weight: 500; }
+.halai-workspace-rail b:first-of-type { background: #263557; color: #fff; }
+.halai-workspace-rail i { width: .39rem; height: .39rem; flex: 0 0 .39rem; border-radius: 50%; background: #a8b7ff; }
+.halai-workspace-rail b:nth-of-type(2) i { background: #86d3b4; }
+.halai-workspace-rail b:nth-of-type(3) i { background: #f3ce8b; }
+.halai-workspace-task { padding: clamp(1rem, 3vw, 1.9rem); }
+.halai-sample-kicker { display: block; margin-bottom: .38rem; color: #bac7ef; font-size: .74rem; }
+.halai-workspace-task strong { display: block; font-size: 1.1rem; line-height: 1.4; letter-spacing: -.018em; }
+.halai-workspace-task p { margin: .45rem 0 1.06rem; color: #ced7ef; font-size: .81rem; line-height: 1.52; }
+.halai-sample-row { display: flex; align-items: center; gap: .55rem; margin-top: .48rem; padding: .52rem .58rem; background: #202d48; border-radius: .32rem; color: #e3ebff; font-size: .75rem; }
+.halai-sample-row svg { color: #aec2ff; flex: 0 0 1rem; }
+.halai-sample-approval { background: #2b3863; }
+.halai-workspace figcaption { display: flex; justify-content: flex-end; padding: .68rem .92rem; background: #1a2640; font-size: .75rem; }
+.halai-workspace figcaption a { display: inline-flex; align-items: center; gap: .4rem; color: #d7e0ff; text-decoration: underline; text-underline-offset: .2em; }
+.halai-workspace figcaption a:focus-visible { outline-color: #baccff; }
+.halai-workflow { border-block: 1px solid var(--halai-line); background: var(--halai-paper); }
+.halai-workflow-inner { padding-block: clamp(2.3rem, 5vw, 4rem); }
+.halai-site h2 { font-size: clamp(1.45rem, 3vw, 2rem); line-height: 1.22; }
+.halai-workflow ol { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(1.25rem, 3vw, 2.4rem); margin-top: 1.65rem; }
+.halai-workflow li { display: flex; gap: .7rem; align-items: flex-start; }
+.halai-workflow li svg { flex: 0 0 1.125rem; margin-top: .18rem; color: var(--halai-accent); }
+.halai-workflow h3 { font-size: 1.02rem; }
+.halai-workflow p, .halai-bottom p { margin-top: .32rem; color: var(--halai-muted); line-height: 1.6; font-size: .94rem; }
+.halai-bottom { padding-block: 3.3rem; display: flex; justify-content: space-between; align-items: center; gap: 1.3rem; }
+.halai-footer { border-top: 1px solid var(--halai-line); background: var(--halai-paper); }
+.halai-footer-inner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1.1rem; padding-block: 1.65rem; }
+.halai-footer p { margin-top: .22rem; font-size: .78rem; color: var(--halai-muted); }
+.halai-footer nav { gap: .75rem 1.35rem; }
+
+.halai-page { max-width: 58.5rem; padding-block: clamp(2.8rem, 6vw, 5.2rem); }
+.halai-page-heading { margin-bottom: 2.2rem; max-width: 46rem; }
+.halai-page-heading h1 { font-size: clamp(2.3rem, 5.4vw, 4.1rem); line-height: 1.06; }
+.halai-page-heading > p { margin-top: 1rem; color: var(--halai-muted); max-width: 39rem; font-size: 1.16rem; line-height: 1.62; }
+.halai-page-heading > a { margin-top: 1.1rem; }
+.halai-sections { border-top: 1px solid var(--halai-line); }
+.halai-sections section { padding: 1.32rem 0 1.48rem; border-bottom: 1px solid var(--halai-line); }
+.halai-sections h2 { font-size: 1.26rem; }
+.halai-sections p, .halai-demo p { color: var(--halai-muted); line-height: 1.65; margin-block: .45rem .62rem; }
+.halai-page-actions { margin-top: 1.25rem; }
+.halai-dialog { box-sizing: border-box; width: min(35rem, calc(100% - 2rem)); margin: auto; padding: 1.5rem; border: 1px solid var(--halai-line); border-radius: .7rem; background: var(--halai-surface); color: var(--halai-ink); }
+.halai-dialog::backdrop { background: #11192f99; }
+.halai-dialog fieldset { margin-top: 1rem; }
+.halai-dialog legend { font-size: .92rem; font-weight: 650; }
+.halai-dialog p { margin: .65rem 0 1rem; line-height: 1.6; color: var(--halai-muted); }
+.halai-demo { display: grid; grid-template-columns: minmax(0, .65fr) minmax(0, 1.35fr); gap: 1.6rem; align-items: start; }
+.halai-demo fieldset, .halai-demo section, .halai-brief form, .halai-brief-output { min-width: 0; border: 1px solid var(--halai-line); border-radius: .7rem; background: var(--halai-paper); padding: 1.3rem; }
+.halai-demo legend { padding: .05rem .25rem; font-weight: 680; font-size: .94rem; }
+.halai-choice { display: flex; align-items: center; gap: .6rem; margin-block: .5rem; cursor: pointer; }
+.halai-site input[type="radio"] { accent-color: var(--halai-accent); width: 1rem; height: 1rem; }
+.halai-demo h2 { display: flex; align-items: center; gap: .48rem; margin-top: 1.2rem; font-size: 1.15rem; }
+.halai-demo h2:first-child { margin-top: 0; }
+.halai-demo h2 svg { color: var(--halai-accent); }
+.halai-demo .halai-demo-note { font-size: .83rem; margin: .85rem 0 1rem; }
+.halai-demo .halai-decision { color: var(--halai-ink); font-weight: 650; margin-top: .83rem; min-height: 1.55rem; }
+.halai-brief { max-width: 44rem; }
+.halai-brief form { display: grid; gap: 1rem; }
+.halai-brief label { display: grid; gap: .32rem; font-size: .9rem; font-weight: 630; min-width: 0; }
+.halai-form-row { display: grid; grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr); gap: 1rem; }
+.halai-brief input, .halai-brief select, .halai-brief textarea { min-width: 0; min-height: 2.6rem; padding: .55rem .68rem; border: 1px solid #8490ab; border-radius: .32rem; background: #fff; color: var(--halai-ink); font-size: .94rem; font-weight: 450; }
+.halai-brief textarea { resize: vertical; }
+.halai-brief-output { margin-top: 1rem; }
+.halai-brief-output h2 { font-size: 1.25rem; }
+.halai-brief-output pre { margin: .7rem 0 1rem; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; color: var(--halai-muted); line-height: 1.65; }
+
+@media (max-width: 760px) {
+  .halai-header-grid { grid-template-columns: 1fr auto; gap: .12rem .7rem; padding-top: .6rem; }
+  .halai-header nav { grid-column: 1 / -1; grid-row: 2; gap: .9rem; min-height: 2.45rem; padding-bottom: .45rem; }
+  .halai-hero { grid-template-columns: 1fr; padding-block: 2.35rem 2.8rem; gap: 1.8rem; }
+  .halai-hero h1 { font-size: clamp(2.6rem, 9vw, 4rem); }
+  .halai-hero-copy > p { margin-block: .96rem 1.2rem; }
+  .halai-workflow ol { grid-template-columns: 1fr; }
+  .halai-bottom { display: grid; }
+  .halai-demo { grid-template-columns: 1fr; gap: 1rem; }
+}
+@media (max-width: 440px) {
+  .halai-container { width: calc(100% - 1.65rem); }
+  .halai-workspace-body { grid-template-columns: 5.4rem minmax(0, 1fr); }
+  .halai-workspace-rail { padding: .95rem .36rem; }
+  .halai-workspace-rail b { font-size: .68rem; }
+  .halai-form-row { grid-template-columns: 1fr; }
+}

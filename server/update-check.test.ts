@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import { createUpdateChecker, installKind, isNewerVersion, LATEST_RELEASE_URL, STABLE_CHANNEL_URL, updateChannel, updateCommand } from "./update-check.ts";
 
 const release = (tag: string) =>
-  ({ ok: true, status: 200, json: async () => ({ tag_name: tag, html_url: `https://github.com/milind-soni/OpenMausBot/releases/tag/${tag}` }) }) as Response;
+  ({ ok: true, status: 200, json: async () => ({ tag_name: tag, html_url: `https://github.com/empire-mind/HALAI/releases/tag/${tag}` }) }) as Response;
 
 const promoted = (version: string) =>
-  ({ ok: true, status: 200, json: async () => ({ channel: "stable", version, image: `ghcr.io/milind-soni/openmausbot@sha256:${"a".repeat(64)}`, releaseUrl: `https://github.com/milind-soni/OpenMausBot/releases/tag/v${version}` }) }) as Response;
+  ({ ok: true, status: 200, json: async () => ({ channel: "stable", version, releaseUrl: `https://github.com/empire-mind/HALAI/releases/tag/v${version}` }) }) as Response;
 const missing = { ok: false, status: 404, json: async () => ({}) } as Response;
 /** GitHub's newest release is `newest`; the stable channel names `stable`, or does not exist yet. */
 const github = (newest: string, stable: string | null) => vi.fn(async (url: string | URL | Request) =>
@@ -29,21 +29,14 @@ describe("server update check", () => {
     expect(installKind({ desktopManaged: false, managed: false, serverRoot: root, exists: none })).toBe("unknown");
   });
 
-  it("knows the rootless Podman service by its unit's mark, and gives its own update.sh, not the Compose recipe", () => {
+  it("recognises packaged installs and supplies an update command only to source checkouts", () => {
     const root = ["", "app", "dist-server"].join(sep);
     const env = { OMB_PODMAN_SERVICE: "~/.local/share/openmausbot" };
     expect(installKind({ desktopManaged: false, managed: false, serverRoot: root, exists: (path) => path === "/run/.containerenv", env })).toBe("podman-service");
     expect(installKind({ desktopManaged: false, managed: false, serverRoot: root, exists: (path) => path === "/run/.containerenv", env: {} })).toBe("podman");
     expect(installKind({ desktopManaged: false, managed: true, serverRoot: root, exists: () => false, env })).toBe("managed");
-    expect(updateCommand("podman-service", undefined, env)).toEqual({ command: "~/.local/share/openmausbot/update.sh", restart: false });
-    expect(updateCommand("podman-service", { version: "0.1.170", stable: false }, env)?.command).toBe("~/.local/share/openmausbot/update.sh --version 0.1.170");
-    expect(updateCommand("podman-service", { version: "0.1.170", stable: true }, { OMB_PODMAN_SERVICE: "/srv/omb@corp/" })?.command).toBe("/srv/omb@corp/update.sh");
-    // Anything but a plain path stands for nothing: the installer's own folder.
-    for (const bad of ["1", "~/x; rm -rf /", "/srv/../etc", "relative/dir", "$(id)"]) {
-      expect(updateCommand("podman-service", undefined, { OMB_PODMAN_SERVICE: bad })?.command, bad).toBe("~/.local/share/openmausbot/update.sh");
-    }
-    expect(updateCommand("docker", { version: "0.1.170", stable: false })?.command).toBe("git pull && ./update.sh --version 0.1.170");
-    expect(updateCommand("docker", { version: "0.1.170", stable: true })?.command).toBe("git pull && ./update.sh");
+    for (const install of ["podman-service", "podman", "docker", "npm"] as const) expect(updateCommand(install)).toBeUndefined();
+    expect(updateCommand("git")).toEqual({ command: "git pull && pnpm install", restart: true });
   });
 
   it("compares release versions numerically and never reports a malformed one", () => {
@@ -62,7 +55,7 @@ describe("server update check", () => {
     expect(isNewerVersion("v0.1.93-rc.1.1", "0.1.93-rc.1")).toBe(true);
   });
 
-  it("follows the stable channel, not the newest release, and gives the update command for this install", async () => {
+  it("follows the HALAI stable channel for a packaged install", async () => {
     const fetch = github("v0.1.95", "0.1.93");
     const check = createUpdateChecker({ current: "0.1.92", install: "docker", fetch });
     expect(await check()).toEqual({
@@ -71,13 +64,11 @@ describe("server update check", () => {
       channel: "stable",
       latest: "0.1.93",
       available: true,
-      releaseUrl: "https://github.com/milind-soni/OpenMausBot/releases/tag/v0.1.93",
-      command: "git pull && ./update.sh",
-      restart: false,
+      releaseUrl: "https://github.com/empire-mind/HALAI/releases/tag/v0.1.93",
     });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledWith(STABLE_CHANNEL_URL, expect.anything());
-    expect(await createUpdateChecker({ current: "0.1.92", install: "npm", fetch })()).toMatchObject({ latest: "0.1.93", command: "npm install -g openmausbot@0.1.93", restart: true });
+    expect(await createUpdateChecker({ current: "0.1.92", install: "npm", fetch })()).not.toHaveProperty("command");
   });
 
   it("offers nothing to a server that is already on the stable version or past it", async () => {
@@ -88,7 +79,7 @@ describe("server update check", () => {
   it("goes by the newest release until a first version has been promoted, or when the owner asked for every release", async () => {
     const unpromoted = github("v0.1.93", null);
     expect(await createUpdateChecker({ current: "0.1.92", install: "docker", fetch: unpromoted })()).toMatchObject({
-      channel: "newest", latest: "0.1.93", available: true, command: "git pull && ./update.sh --version 0.1.93",
+      channel: "newest", latest: "0.1.93", available: true,
     });
     expect(unpromoted).toHaveBeenLastCalledWith(LATEST_RELEASE_URL, expect.anything());
     const fetch = github("v0.1.95", "0.1.93");
@@ -127,7 +118,7 @@ describe("server update check", () => {
     let now = 0;
     const fetch = github("v0.1.92", "0.1.92");
     const check = createUpdateChecker({ current: "0.1.92", install: "npm", fetch, now: () => now });
-    expect(await check()).toMatchObject({ available: false, latest: "0.1.92", command: "npm install -g openmausbot@0.1.92", restart: true });
+    expect(await check()).toMatchObject({ available: false, latest: "0.1.92" });
     now = 59 * 60_000;
     await check();
     expect(fetch).toHaveBeenCalledTimes(1);

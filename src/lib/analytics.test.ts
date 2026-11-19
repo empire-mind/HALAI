@@ -5,6 +5,7 @@ import { appVersion } from "./app-links";
 
 // `loads` counts evaluations of posthog-js (an opted-out session must leave it at 0); `calls` is what would reach PostHog.
 const ph = vi.hoisted(() => {
+  vi.stubEnv("VITE_HALAI_ANALYTICS_KEY", "phc_halai_fixture");
   const ph = {
     loads: 0,
     fail: false,
@@ -83,6 +84,19 @@ async function freshAnalytics() {
   vi.doMock("posthog-js", () => ph.module());
   return import("./analytics");
 }
+
+it("leaves analytics unloaded without a HALAI project key", async () => {
+  vi.stubEnv("VITE_HALAI_ANALYTICS_KEY", "");
+  try {
+    const fresh = await freshAnalytics();
+    expect(fresh.analyticsEnabled()).toBe(false);
+    await fresh.initAnalytics();
+    expect(ph.loads).toBe(0);
+    expect(ph.calls).toEqual([]);
+  } finally {
+    vi.stubEnv("VITE_HALAI_ANALYTICS_KEY", "phc_halai_fixture");
+  }
+});
 
 const OPENED = ["init", "register", "capture app_first_open", "capture app_opened"];
 

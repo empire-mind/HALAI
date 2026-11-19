@@ -152,7 +152,7 @@ const cloudEntry = createCloudEntry({
     return delivered;
   },
 });
-cloudEntry.fromLaunch(process.argv); const teamLinks = installTeamJoin({ argv: process.argv, account: () => (app.isPackaged && !desktopRemoteAccess ? ensureCloudAccount() : null), addAccount: () => accountRing()?.addBrowser() ?? Promise.resolve(), openTeam: team => workspaceMenuAction(async () => { homeWindow.cancel(); await showHome({ place: { team: team.id, name: team.name } }); }), confirm: async (message, detail, button) => (await dialog.showMessageBox({ type: "question", buttons: [button, nativeT("native.common.cancel")], defaultId: 0, cancelId: 1, message, detail })).response === 0, t: (key, params) => nativeT(key, params), reveal: () => { if (!desktopTray?.show()) activateExistingWindow(appWindows()); }, store: jsonFile(path.join(app.getPath("userData"), "team-landing.json")), ownPlace: () => Boolean(homeWindow.cloudOrigin()) || Boolean(homePlaces.remembered()), log: line => slog(line) });
+cloudEntry.fromLaunch(process.argv); const teamLinks = installTeamJoin({ argv: process.argv, account: () => (upstreamCloudEnabled() ? ensureCloudAccount() : null), addAccount: () => accountRing()?.addBrowser() ?? Promise.resolve(), openTeam: team => workspaceMenuAction(async () => { homeWindow.cancel(); await showHome({ place: { team: team.id, name: team.name } }); }), confirm: async (message, detail, button) => (await dialog.showMessageBox({ type: "question", buttons: [button, nativeT("native.common.cancel")], defaultId: 0, cancelId: 1, message, detail })).response === 0, t: (key, params) => nativeT(key, params), reveal: () => { if (!desktopTray?.show()) activateExistingWindow(appWindows()); }, store: jsonFile(path.join(app.getPath("userData"), "team-landing.json")), ownPlace: () => Boolean(homeWindow.cloudOrigin()) || Boolean(homePlaces.remembered()), log: line => slog(line) });
 let pendingPackageInstallUrl = pendingOrganizationEntry ? null : packageUrlFromCommandLine(process.argv);
 let pendingChatLink = pendingOrganizationEntry ? null : chatLinkFromCommandLine(process.argv);
 let organizationEntryReady = false;
@@ -439,7 +439,7 @@ async function secureWorkspaceConfig() {
 }
 
 function composioBrokerUrl() {
-  return managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL, app.isPackaged);
+  return managedComposioBrokerUrl(process.env.OMB_COMPOSIO_BROKER_URL);
 }
 
 // Finder/Explorer launches have no usable stdio, so the server child's output goes to server.log here.
@@ -715,7 +715,6 @@ function installationDisplayName() {
 function ensureCompanionAccountService() {
   if (companionAccountService) return companionAccountService;
   const baseURL = resolveCompanionControlPlaneURL({
-    isPackaged: app.isPackaged,
     environment: process.env,
   });
   let client = null;
@@ -795,9 +794,13 @@ function syncPhoneSecretKey(proc) {
 }
 
 const cloudEncryption = { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value), decrypt: value => safeStorage.decryptStringAsync(value) }; let activeSignIn = null; const cloudAccountStore = () => (activeSignIn ??= createCloudAccountStore({ file: path.join(app.getPath("userData"), cloudTarget(process.env).file), encryption: cloudEncryption }));
+function upstreamCloudEnabled() {
+  return process.env.HALAI_ENABLE_UPSTREAM_CLOUD === "1" && app.isPackaged && !desktopRemoteAccess;
+}
+
 function ensureCloudAccount() {
   if (cloudAccount) return cloudAccount;
-  if (!app.isPackaged || desktopRemoteAccess) throw new Error("MausBot Cloud sign-in requires the local desktop app.");
+  if (!upstreamCloudEnabled()) throw new Error("Hosted cloud is disabled for this HALAI installation.");
   cloudAccount = createCloudAccountClient({
     store: cloudAccountStore(),
     platform: process.platform, deviceName: os.hostname().slice(0, 100) || "My computer", appVersion: app.getVersion(), origin: cloudTarget(process.env).origin,
@@ -833,7 +836,7 @@ async function readCloudOfferBrand() {
   refreshApplicationMenu();
 }
 function cloudOffersAllowed() {
-  return app.isPackaged && !desktopRemoteAccess && brandedBuild === false;
+  return upstreamCloudEnabled() && brandedBuild === false;
 }
 async function cloudOffersReady() {
   if (brandedBuild === null && serverReady) await readCloudOfferBrand();
@@ -2457,7 +2460,13 @@ const workspaceOnly = (handler) => (event, ...args) => {
 const localWorkspaceOnly = (channel, handler) => localOnly(channel, workspaceOnly(handler));
 // No renderer-supplied address, token, paid flag or callback can choose an account or activate Pro.
 for (const method of ["state", "begin", "signInAgain", "reopen", "cancel", "refresh", "signOut", "openDashboard", "offer"]) {
-  ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => (method === "signOut" ? accounts.signOutActive() : ensureCloudAccount()[method]())));
+  ipcMain.handle(`cloud-account:${method}`, localWorkspaceOnly(`cloud-account:${method}`, () => {
+    if (!upstreamCloudEnabled()) {
+      if (method === "offer") return null;
+      if (method === "state" || method === "refresh") return { status: "unavailable", message: "Hosted cloud is disabled for this HALAI installation." };
+    }
+    return method === "signOut" ? accounts.signOutActive() : ensureCloudAccount()[method]();
+  }));
 }
 ipcMain.handle("cloud-account:checkout", localWorkspaceOnly("cloud-account:checkout", async (_event, plan, source) => {
   if (!(await cloudOffersReady())) throw new Error("MausBot Cloud isn't offered in this app.");
@@ -2988,8 +2997,7 @@ app.whenReady().then(async () => {
   }
   if (desktopShutdownStarted) return;
   if (app.isPackaged && !desktopRemoteAccess) { void ensureManagedDesktop().start().then(() => companyBackupSchedule.start()).catch(() => {}); void managedDesktop.whenRestored().then(() => tailnetShare.recheck()); }
-  // Fresh local use never makes a Cloud request; start only restores an existing grant.
-  if (app.isPackaged && !desktopRemoteAccess) {
+  if (upstreamCloudEnabled()) {
     cloudAccountRestoring = true;
     cloudAccountStarted = ensureCloudAccount().start().catch(() => {}).then(() => accountRing()?.start()).finally(() => { cloudAccountRestoring = false; });
   }

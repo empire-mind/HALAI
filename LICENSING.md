@@ -5,8 +5,8 @@ carve-out and a few notes.
 
 ## The carve-out: `enterprise/`
 
-Everything under `enterprise/` is source-available under the
-[OpenMausBot Enterprise License](enterprise/LICENSE), not Apache 2.0. You may
+The upstream `enterprise/` directory is source-available under the
+[OpenMausBot Enterprise License](https://github.com/milind-soni/OpenMausBot/blob/main/enterprise/LICENSE), not Apache 2.0. HALAI ships the open-source edition. You may
 read, build, and evaluate it, and run it freely in development and test.
 Running its features in production needs a license key issued for your
 organisation. Hosting it for third parties or white-labelling the product needs
@@ -20,7 +20,7 @@ its configured sign-in authority. The `open-source edition builds without
 enterprise/` CI job proves the OSS build, boot response and absent adapter
 factory; it does not exercise every hosted HTTP route. The isolated hosted
 workspace tests verify those sign-in and revocation paths separately. The list
-of entitlement ids the server understands is in [`enterprise/FEATURES`](enterprise/FEATURES).
+of entitlement ids the server understands is in [the upstream feature list](https://github.com/milind-soni/OpenMausBot/blob/main/enterprise/FEATURES).
 
 The routing rule for new work: could any open-source user want it? Then it goes
 in core, as a public pull request. Organisation-, admin- or tier-flavoured?
