@@ -32,6 +32,7 @@ export default function SiteLayout({ children }: { children: ReactNode }) {
           <nav aria-label="Footer navigation">
             <Link href="/business">Business</Link>
             <Link href="/pricing">Pricing</Link>
+            <Link href="/compare">Compare</Link>
             <Link href="/security">Security</Link>
             <Link href="/privacy">Privacy</Link>
             <Link href="/releases">Releases</Link>

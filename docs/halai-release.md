@@ -21,11 +21,11 @@ The reference crawl verified 90 marketing URLs and 50 documentation URLs. This t
 
 The inherited runtime inventory traces 62 capabilities. Local agents and their engines, conversations, workspaces, routines, approvals, knowledge, provider connections, computing, voice, device pairing and self-hosting remain in the same codebase. The technical reference keeps existing CLI, data and protocol names so operators can use the same entry points while the product adopts its own identity.
 
-The HALAI product default uses its own name and mark. The existing licensed override check still controls optional custom brand files. The source candidate and its archive exclude the separately licensed enterprise tree and retain the original notices. Installers, app store identities and the remaining inherited UI artwork need a distribution review.
+The HALAI product default uses its own name and mark. The existing licensed override check still controls optional custom brand files. The source candidate and its archive exclude the separately licensed enterprise tree and retain the original notices. The desktop build uses the HALAI mark and first-party launcher labels. Package identifiers, signing, app store identities and remaining inherited UI artwork need distribution review.
 
 ## Business rollout
 
-The first-party site can run from `apps/docs` on an EmpireMind-approved host. Configure the canonical origin and enrol indexing explicitly when the production domain is ready. A browser can prepare and save a rollout brief with an organisation, team size, hosting choice and pilot task. The configured business address opens a draft for the operator to review.
+The first-party site can run from `apps/docs` on an EmpireMind-approved host. Configure the canonical origin and enable indexing on the approved public domain. Set `HALAI_RELEASE_REVISION` from the build checkout and verify the publisher's deployment against `/release.json` before checking delivered pages. A browser can prepare and save a rollout brief with an organisation, team size, hosting choice and pilot task. The configured business address opens a draft for the operator to review.
 
 The bundled runtime requires explicit settings for a managed connector broker or hosted pairing control plane. Its vendor cloud path is an opt-in compatibility path for authorised evaluations. Analytics needs a configured HALAI project key and standalone support reports need `OMB_BUG_REPORT_URL`. HALAI checks its own release history. Self-hosted update runners require an explicit `OMB_SERVER_UPDATE_DIR` for the configured host. First-party checkout, hosted pricing and signed installer receipts are release decisions.
 
@@ -36,7 +36,7 @@ Reuse the 20-gate scorecard with evidence tied to the HALAI revision and its aut
 | Gate | HALAI evidence and acceptance |
 | --- | --- |
 | REA-01 · Sitemap inventory | Generate the sitemap for the 13 site and 50 docs routes. Re-crawl the publisher's live inventory. |
-| REA-02 · Pinned revision | Record the exact candidate tree and pin the source of each authorised deployment. |
+| REA-02 · Pinned revision | Record the exact candidate tree. Match `/release.json` to the publisher's deployment and the approved commit. |
 | REA-03 · Capability trace | Map the reference route families above and trace the capabilities that ship in the open-source runtime. |
 | REA-04 · Source and hosted boundaries | Identify the core, platform packages, customer integrations and first-party service owners for the release. |
 | REA-05 · HTML responses | Verify HTTP 200 and HTML content on every advertised URL in the intended release. |
@@ -52,7 +52,7 @@ Reuse the 20-gate scorecard with evidence tied to the HALAI revision and its aut
 | REA-15 · Theme lifecycle | Import, apply, export and remove the HALAI Studio theme in an isolated runtime. |
 | REA-16 · Stock contrast | Verify the stock skins and Midnight on desktop and phone on the accepted revision. |
 | REA-17 · Agent reply | Re-run the fake-provider fixture and read the completed reply back from the same task. |
-| REA-18 · Authorised service and installer journeys | Collect staging receipts for checkout, provider connection, form delivery, native installers and device pairing against the release revision. |
+| REA-18 · Authorised service and installer journeys | Collect staging receipts for checkout, provider connection, form delivery, native installers and device pairing against the release revision. The loopback pairing and packaged-server fixtures provide engineering QA for their measured paths. |
 | REA-19 · Accessibility | Obtain a signed independent WCAG 2.2 AA assessment of the intended release with keyboard, screen reader and complete-process coverage. |
 | REA-20 · Evidence replay | Replay the deterministic fixtures. Use Jev output for triage within its measured scope. |
 

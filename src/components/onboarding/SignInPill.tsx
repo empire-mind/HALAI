@@ -15,7 +15,7 @@ const POLL_MS = 2_000;
 const POLL_MAX_MS = 30_000;
 const POLL_STALLS = 3;
 const POLL_TIMEOUT_MS = 10_000;
-export const PILL = "ui-button ui-button-pill ui-button-lg ui-button-primary w-[288px] max-w-full";
+export const PILL = "ui-button ui-button-pill ui-button-lg ui-button-primary min-h-11 w-[288px] max-w-full";
 
 type Slot =
   | { kind: "start" }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckCircle2, ClipboardList, ShieldCheck } from 'lucide-react';
 
 const workflows = {
@@ -24,7 +24,15 @@ type Decision = 'approved' | 'denied' | null;
 export function Demo() {
   const [workflow, setWorkflow] = useState<Workflow>('handover');
   const [decision, setDecision] = useState<Decision>(null);
+  const feedback = useRef<HTMLParagraphElement>(null);
+  const approve = useRef<HTMLButtonElement>(null);
   const sample = workflows[workflow];
+
+  function decide(next: Decision) {
+    setDecision(next);
+    if (next) feedback.current?.focus();
+    else requestAnimationFrame(() => approve.current?.focus());
+  }
 
   return (
     <div className="halai-demo">
@@ -48,16 +56,16 @@ export function Demo() {
         <h2><ShieldCheck size={20} aria-hidden="true" /> Approval</h2>
         <p>{sample.action}</p>
         <p className="halai-demo-note">This example runs in your browser using sample data.</p>
-        <div className="halai-actions">
-          <button type="button" className="halai-button" disabled={decision !== null} onClick={() => setDecision('approved')}>Approve</button>
-          <button type="button" className="halai-button halai-button-outline" disabled={decision !== null} onClick={() => setDecision('denied')}>Deny</button>
-          {decision && <button type="button" className="halai-text-link" onClick={() => setDecision(null)}>Reset</button>}
-        </div>
-        <p className="halai-decision" role="status">
+        <p ref={feedback} tabIndex={-1} className="halai-decision" role="status">
           {decision === 'approved' ? 'Approved. The sample action can proceed.'
             : decision === 'denied' ? 'Denied. The sample draft stays in review.'
               : 'Waiting for a decision.'}
         </p>
+        <div className="halai-actions">
+          <button ref={approve} type="button" className="halai-button" disabled={decision !== null} onClick={() => decide('approved')}>Approve</button>
+          <button type="button" className="halai-button halai-button-outline" disabled={decision !== null} onClick={() => decide('denied')}>Deny</button>
+          {decision && <button type="button" className="halai-text-link" onClick={() => decide(null)}>Reset</button>}
+        </div>
       </section>
     </div>
   );
