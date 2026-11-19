@@ -35,4 +35,12 @@ The changelog reads published releases from `empire-mind/HALAI` and caches the r
 
 Read `/release.json` on the published origin to match the site to its source commit before collecting sitemap, canonical and keyboard evidence.
 
+Run the delivery checks from the repository root with the approved origin, full commit SHA and sitemap XML saved from the approved build.
+
+```bash
+node scripts/verify-halai-site.mjs "$HALAI_APPROVED_ORIGIN" "$HALAI_APPROVED_REVISION" "$HALAI_APPROVED_SITEMAP" all
+```
+
+Use `docs` or `marketing` to check the relevant routes when the publishers differ. The marketing check uses a fresh Chrome profile and presses Tab and Enter at 1440 and 390 px. Set `OMB_CDP_CHROME` to the browser binary when using a browser outside the default macOS Chrome installation. Retain the JSON with the publisher's release receipt. The signed commissioning and independent accessibility evidence are recorded against the same approved release.
+
 [HALAI release and REA coverage](../../docs/halai-release.md)
