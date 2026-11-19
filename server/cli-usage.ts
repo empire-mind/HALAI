@@ -1,4 +1,12 @@
-export { HEADLESS_VERBS as HEADLESS_VERB_NAMES } from "./headless/args.ts";
+import { HEADLESS_VERBS as HEADLESS_VERB_NAMES } from "./headless/args.ts";
+
+export { HEADLESS_VERB_NAMES };
+
+export function isHeadlessInvocation(argv: readonly string[]): boolean {
+  const command = argv[0] ?? "";
+  if (command === "status") return argv.slice(1).some((arg) => arg === "--url" || arg.startsWith("--url="));
+  return HEADLESS_VERB_NAMES.has(command) || (command === "help" && HEADLESS_VERB_NAMES.has(argv[1] ?? ""));
+}
 
 export const HEADLESS_USAGE = `Drive a running workspace (scripts, CI, other agents):
   openmausbot status --url URL         read the workspace's status and bots

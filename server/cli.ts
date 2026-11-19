@@ -38,7 +38,7 @@ import { startFleetAgent } from "./fleet-agent.ts";
 import { fleetLayout } from "./fleet.ts";
 import { clearLeftoverTailscaleServe, explainTailscaleFailure, tailnetListenFallback, tailscaleServe, tailscaleStatus, type TailscaleStatus } from "./tailscale.ts";
 import { defaultSetupIo, SetupCancelled, type SetupIo } from "./cli-prompts.ts";
-import { HEADLESS_VERB_NAMES, usage } from "./cli-usage.ts";
+import { isHeadlessInvocation, usage } from "./cli-usage.ts";
 import { normalizePhoneOrigin, phonePairingInstructions, runPhoneSetup } from "./cli-phone-setup.ts";
 import { browserSignInLines, desktopOwnedRefusal, formatSessions, pairingBlock, RELAY_NOT_WITH_TUNNEL, relayPairingBlock, showRelayPairing } from "./cli-pairing.ts";
 import { cliCommand, cliPrefix } from "./cli-invocation.ts";
@@ -975,12 +975,7 @@ export async function runOnboardingCommand(
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   if (argv[0] === "sentinel") return runSentinelCli(argv.slice(1));
   if (argv[0] === "config") return runConfigCli(argv.slice(1));
-  const command = argv[0] ?? "";
-  const workspaceStatus = command === "status" && argv.slice(1).some((arg) => arg === "--url" || arg.startsWith("--url="));
-  const headless = HEADLESS_VERB_NAMES.has(command) && command !== "status";
-  if (workspaceStatus || headless || (command === "help" && HEADLESS_VERB_NAMES.has(argv[1] ?? ""))) {
-    return (await import("./headless/main.ts")).runHeadless(argv);
-  }
+  if (isHeadlessInvocation(argv)) return (await import("./headless/main.ts")).runHeadless(argv);
   const options = parseArgs(argv);
   if ("error" in options) {
     console.error(`${options.error}\nAll commands and options: ${cliCommand("--help")}`);
