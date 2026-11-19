@@ -46,7 +46,7 @@ export function execFileInGroup(
   options: GroupExecOptions,
   callback: (error: ExecError | null, stdout: string, stderr: string) => void,
 ): ChildProcess {
-  const { timeout, signal, maxBuffer = 1024 * 1024, encoding: _encoding, ...rest } = options;
+  const { timeout, signal, maxBuffer = 1024 * 1024, cwd, env, uid, gid } = options;
   const cmd = [file, ...args].join(" ");
   let stdout = "", stderr = "", stopped = false, overflow = false, finished = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -62,7 +62,7 @@ export function execFileInGroup(
     signal?.removeEventListener("abort", stop);
     callback(error ? Object.assign(error, { cmd, stdout, stderr, ...(stopped ? { killed: true } : {}) }) : null, stdout, stderr);
   };
-  const child = spawn(file, args, { ...rest, ...OWN_GROUP, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(file, args, { cwd, env, uid, gid, ...OWN_GROUP, shell: false, stdio: ["pipe", "pipe", "pipe"] });
   const take = (which: "stdout" | "stderr") => (chunk: string) => {
     if (which === "stdout") stdout += chunk; else stderr += chunk;
     if (!overflow && stdout.length + stderr.length > maxBuffer) { overflow = true; stop(); }

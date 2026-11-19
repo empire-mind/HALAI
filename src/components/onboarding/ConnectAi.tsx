@@ -4,11 +4,12 @@ import { EngineSetup } from "@/components/EngineSetup";
 import { engineReady } from "@/components/EngineLibrary";
 import { InstanceProviderMark } from "@/components/ProviderIcons";
 import { ModelgoOption } from "@/components/ModelgoOffer";
+import { useModalDialog } from "@/hooks/use-modal-dialog";
 import { cn } from "@/lib/cn";
 import { t } from "@/lib/i18n";
 import { engineDisplayName } from "@/lib/engine-name";
 import { modelgoOfferable } from "@/lib/modelgo-offer";
-import { aiChoices, aiWorks, organisationSignIn, plainSignIn } from "@/lib/onboarding";
+import { aiChoices, aiWorks, firstAis, organisationSignIn, signInFollows } from "@/lib/onboarding";
 import { api, useStore, type InstanceInfo } from "@/state/store";
 import { freeFallback } from "../../../shared/ai-ranking";
 import { OrganisationRow } from "./beats/OrganisationRow";
@@ -18,7 +19,7 @@ import type { WelcomeAiNow } from "./welcome-ai";
  * instead of the setup's technical one. */
 function setupFor(instance: InstanceInfo) {
   if (instance.access === "custom") return { intent: "inject" as const };
-  return plainSignIn(instance)
+  return signInFollows(instance)
     ? { intent: "cloud" as const, description: t("onboarding.engines.signInHint", { name: engineDisplayName(instance) }) }
     : { intent: "cloud" as const };
 }
@@ -43,10 +44,11 @@ function OtherWay({ instance, open, onToggle }: { instance: InstanceInfo; open: 
   );
 }
 
-/** Every way to connect an AI, until one has answered a test message (`tested`, from useWelcomeAi): the recommended
- * one's own setup first, then the organization and every other AI. One that didn't answer says why, with Check again;
- * OpenCode's free model is only ever a backup. */
-export function ConnectAi({ hosted = false, tested }: { hosted?: boolean; tested: WelcomeAiNow | null }) {
+/** Every way to connect an AI, until one has answered a test message (`tested`, from useWelcomeAi): Claude's, ChatGPT's
+ * and OpenCode's own setups first (else the recommended one's), then the organization and every other AI. One that
+ * didn't answer says why, with Check again; OpenCode's free model is only a backup until the person picks it
+ * (`onChoose`). */
+export function ConnectAi({ hosted = false, tested, onChoose }: { hosted?: boolean; tested: WelcomeAiNow | null; onChoose?: (instanceId: string) => void }) {
   const { state, dispatch } = useStore();
   const organisation = organisationSignIn(window.ogb, { hosted });
   const [failed, setFailed] = useState(false);
@@ -78,7 +80,11 @@ export function ConnectAi({ hosted = false, tested }: { hosted?: boolean; tested
 
   const connected = tested && aiWorks(tested) ? tested.instance : undefined;
   const backup = state.instances.find((instance) => engineReady(instance) && freeFallback(instance));
-  const { recommended, others } = aiChoices(state.instances.filter((instance) => instance.install && !engineReady(instance)));
+  const offered = state.instances.filter((instance) => instance.install && !engineReady(instance));
+  const first = firstAis(state.instances, engineReady).map(({ instance }) => instance).filter((instance) => offered.includes(instance));
+  const { recommended } = aiChoices(offered);
+  const leading = first.length ? first : recommended ? [recommended] : [];
+  const others = offered.filter((instance) => !leading.includes(instance));
   const modelgoReady = state.instances.some((instance) => instance.driverKind === "modelgo" && engineReady(instance));
   // Hosted: the organization provides the AI and refuses a key of the person's own.
   const showModelgo = !hosted && !modelgoReady && modelgoOfferable(state.config?.managedPolicy);
@@ -120,9 +126,14 @@ export function ConnectAi({ hosted = false, tested }: { hosted?: boolean; tested
               {t("onboarding.engines.freeBackup", { name: engineDisplayName(backup) })}
             </p>
           )}
-          {recommended ? (
-            <div data-ai-recommended={recommended.instanceId} className="animate-rise w-full rounded-2xl bg-card p-4 text-left">
-              <EngineSetup instance={recommended} {...setupFor(recommended)} className="border-0 bg-transparent p-0" />
+          {leading.length ? (
+            <div className="flex w-full flex-col gap-3">
+              {leading.map((instance) => (
+                <div key={instance.instanceId} data-ai-recommended={instance.instanceId} className="animate-rise w-full rounded-2xl bg-card p-4 text-left"
+                  onClickCapture={() => onChoose?.(instance.instanceId)}>
+                  <EngineSetup instance={instance} {...setupFor(instance)} className="border-0 bg-transparent p-0" />
+                </div>
+              ))}
             </div>
           ) : !tested && !backup && !failed ? (
             <p className="text-[13px] text-ink-secondary" aria-live="polite">{t("common.checking")}</p>
@@ -163,35 +174,35 @@ export function ConnectAi({ hosted = false, tested }: { hosted?: boolean; tested
 }
 
 /** "Connect an AI": every way to connect one, over the first screen or the chat, until it is closed. */
-export function ConnectAiDialog({ hosted = false, tested, onClose }: { hosted?: boolean; tested: WelcomeAiNow | null; onClose: () => void }) {
+export function ConnectAiDialog({ hosted = false, tested, onChoose, onClose }: {
+  hosted?: boolean; tested: WelcomeAiNow | null; onChoose?: (instanceId: string) => void; onClose: () => void;
+}) {
+  const dialog = useRef<HTMLDivElement>(null);
+  useModalDialog(dialog, onClose);
   return (
     <div
       className="ui-scrim fixed inset-0 z-[60] flex items-center justify-center p-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
         aria-labelledby="connect-ai-title"
+        tabIndex={-1}
         data-connect-ai=""
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          event.stopPropagation();
-          onClose();
-        }}
         className="ui-modal animate-pop-in flex max-h-[min(640px,calc(100vh-32px))] w-[440px] max-w-full flex-col overflow-hidden text-left"
       >
         <div className="flex h-[52px] shrink-0 items-center justify-between pl-4 pr-3">
           <h2 id="connect-ai-title" className="text-[14px] font-semibold leading-[22px] text-ink">{t("onboarding.meet.connectAi")}</h2>
-          <button type="button" autoFocus onClick={onClose} aria-label={t("common.close")} title={t("common.close")}
+          <button type="button" onClick={onClose} aria-label={t("common.close")} title={t("common.close")}
             className="flex size-7 items-center justify-center rounded-full text-ink-secondary transition-colors hover:bg-ink/[0.06] hover:text-ink">
             <X size={16} />
           </button>
         </div>
         <div className="ui-modal-divider shrink-0" />
         <div className="min-h-0 overflow-y-auto p-4 [scrollbar-width:thin]">
-          <ConnectAi hosted={hosted} tested={tested} />
+          <ConnectAi hosted={hosted} tested={tested} onChoose={onChoose} />
         </div>
       </div>
     </div>

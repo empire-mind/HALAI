@@ -67,6 +67,16 @@ export function requestTarget(rawUrl: string | undefined): URL | null {
   }
 }
 
+function viewerRequest(target: URL, headers: Record<string, string>, onResponse?: (response: IncomingMessage) => void) {
+  return httpRequest({
+    hostname: "127.0.0.1",
+    port: target.port,
+    path: target.pathname + target.search,
+    method: "GET",
+    headers,
+  }, onResponse);
+}
+
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const text = JSON.stringify(body);
   res.writeHead(status, {
@@ -270,7 +280,7 @@ export class CompanionViewerRelay {
       const value = req.headers[name];
       if (typeof value === "string") headers[name] = value;
     }
-    const upstream = httpRequest(resolved.target, { method: "GET", headers }, (remote) => {
+    const upstream = viewerRequest(resolved.target, headers, (remote) => {
       upstream.setTimeout(0);
       const responseHeaders: Record<string, string | string[]> = {
         "cache-control": "private, no-store",
@@ -327,7 +337,7 @@ export class CompanionViewerRelay {
   }
 
   #pipe(resolved: { session: ViewerSession; target: URL }, socket: Duplex, head: Buffer, headers: Record<string, string>): void {
-    const upstream = httpRequest(resolved.target, { method: "GET", headers });
+    const upstream = viewerRequest(resolved.target, headers);
     resolved.session.sockets.add(socket);
     resolved.session.sockets.add(upstream);
     socket.once("close", () => resolved.session.sockets.delete(socket));
