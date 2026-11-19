@@ -119,6 +119,7 @@ it("recovers queued/due work and a waiting routine's imported hand-off after res
       OMB_PORT: new URL(url).port, OMB_WEBHOOK_PORT: String(Number(new URL(url).port) + 1),
       PATH: dirname(process.execPath), FAKE_CLAUDE_MODE: "happy",
       OMB_DESKTOP_LAUNCH_ID: "previous-desktop-launch",
+      OMB_DISABLE_MODEL_MANIFEST_FETCH: "1",
     });
     const log = openSync(logPath, "a", 0o600);
     restarted = spawn(process.execPath, ["--experimental-strip-types", fileURLToPath(new URL("./index.ts", import.meta.url))], {
@@ -165,7 +166,9 @@ it("recovers queued/due work and a waiting routine's imported hand-off after res
     const resumedThread = (await api("GET", `/api/threads/${interruptedBot.threadId}/messages?limit=100`)).messages as Array<{ tool?: { name?: string }; from?: { botId?: string } }>;
     expect(resumedThread.some((message) => message.tool?.name === "Waiting routine's peer replied" && message.from?.botId === orphanPeer.id)).toBe(true);
     expect(resumedThread.some((message) => message.tool?.name?.startsWith("Resumed with Waiting routine's peer results"))).toBe(true);
-    expect(runs.filter(run => run.routineId === cron.id && run.scheduledFor < Math.floor(Date.now() / 60_000) * 60_000)).toHaveLength(1);
+    expect(runs.filter(run => run.routineId === cron.id && run.scheduledFor < ranFor)).toEqual([
+      expect.objectContaining({ scheduledFor: cronDueAt, status: "missed" }),
+    ]);
     const restoredCron = (await api("GET", "/api/routines")).routines.find((routine: { id: string }) => routine.id === cron.id);
     expect(restoredCron.schedule).toEqual(cron.schedule);
     expect(restoredCron.nextRunAt).toBeGreaterThan(Date.now());

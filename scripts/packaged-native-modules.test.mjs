@@ -31,10 +31,11 @@ describe("packaged native modules", () => {
     temporaryDirectories.push(checkout);
     const pins = Object.fromEntries(nativelyRequired().map((name, i) => [name, `9.9.${i}`]));
     writeFileSync(join(checkout, "package.json"), JSON.stringify({ version: "0.0.1", dependencies: { ...pins, react: "19.0.0" } }));
-    for (const file of ["dist-server/index.js", "dist-server/openmausbot.js", "dist/index.html", "LICENSE"]) {
+    for (const file of ["dist-server/index.js", "dist-server/openmausbot.js", "dist/index.html"]) {
       mkdirSync(join(checkout, file, ".."), { recursive: true });
       writeFileSync(join(checkout, file), "");
     }
+    for (const file of ["LICENSE", "NOTICE"]) copyFileSync(join(root, file), join(checkout, file));
     mkdirSync(join(checkout, "scripts"));
     copyFileSync(join(root, "scripts", "build-npm-package.mjs"), join(checkout, "scripts", "build-npm-package.mjs"));
     execFileSync(process.execPath, [join(checkout, "scripts", "build-npm-package.mjs")], { stdio: "pipe" });
