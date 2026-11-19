@@ -66,7 +66,10 @@ const react = vi.hoisted(() => {
     }
     throw new Error("render did not settle");
   }
-  return { runtime, hooks, render };
+  function unmount() {
+    for (const slot of runtime.slots as Array<Committed | undefined>) slot?.cleanup?.();
+  }
+  return { runtime, hooks, render, unmount };
 });
 vi.mock("react", async (original) => ({ ...await original<typeof import("react")>(), ...react.hooks }));
 
@@ -182,7 +185,9 @@ beforeEach(() => {
     addEventListener: (_: string, listener: (event: Partial<KeyboardEvent>) => void) => keyListeners.add(listener),
     removeEventListener: (_: string, listener: (event: Partial<KeyboardEvent>) => void) => keyListeners.delete(listener),
   });
-  vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => frames.push(frame));
+  const requested: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) => { frames.push(frame); return requested.push(frame); });
+  vi.stubGlobal("cancelAnimationFrame", (id: number) => { frames = frames.filter((frame) => frame !== requested[id - 1]); });
   vi.stubGlobal("ResizeObserver", class {
     constructor(callback: () => void) {
       observers++;
@@ -198,7 +203,10 @@ beforeEach(() => {
   });
   vi.stubGlobal("HTMLTextAreaElement", class {});
   vi.stubGlobal("HTMLInputElement", class {});
-  return () => vi.unstubAllGlobals();
+  return () => {
+    react.unmount();
+    vi.unstubAllGlobals();
+  };
 });
 
 const press = (key: string, target: unknown = {}) => {
