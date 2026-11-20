@@ -143,8 +143,9 @@ try {
     await page.send("Network.enable");
     await page.send("Network.setBypassServiceWorker", { bypass: true });
     await page.send("Network.setCacheDisabled", { cacheDisabled: true });
-    page.onEvent("Fetch.requestPaused", ({ requestId, request }) => {
-      const allowed = new URL(request.url).origin === origin && ["GET", "HEAD"].includes(request.method);
+    page.onRequestPaused(({ requestId, request }) => {
+      const allowed = URL.canParse(request.url) && new URL(request.url).origin === origin
+        && ["GET", "HEAD"].includes(request.method);
       void page.send(
         allowed ? "Fetch.continueRequest" : "Fetch.failRequest",
         allowed ? { requestId } : { requestId, errorReason: "BlockedByClient" },
