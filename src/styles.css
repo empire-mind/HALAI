@@ -139,53 +139,53 @@
   --animate-sent-border: sent-border 1.2s ease-out forwards;
 
   /* Defaults = Midnight. Kept here so the app is never unstyled. */
-  --color-app: #121212;
-  --color-panel: #0e0e0e;
-  --color-raised: #202020;
-  --color-raised-hover: #2c2c2c;
+  --color-app: #12182a;
+  --color-panel: #0f1425;
+  --color-raised: #1b253c;
+  --color-raised-hover: #25334e;
   /* the composer pill. Every skin but Daylight paints it in `raised`; there
      it is the page colour with a hairline ring, so it needs a tone (and a
      ring, transparent everywhere else) of its own. */
-  --color-composer: #1f1f1f;
-  --color-composer-ring: #2a2a2a;
+  --color-composer: #1b253c;
+  --color-composer-ring: #8796b6;
   /* popover and right-click menus. Same story as the composer: every skin
      but Daylight paints them in `card`, which there is the bot's bubble and
      a shade too grey for a menu. */
-  --color-menu: #1f1f1f;
-  --color-menu-hover: #f5f5f50f;
-  --color-menu-active: #f5f5f514;
-  --color-card: #1f1f1f;
-  --color-inset: #1b1b1b;
+  --color-menu: #1b253c;
+  --color-menu-hover: #f2f5ff0f;
+  --color-menu-active: #f2f5ff14;
+  --color-card: #1b253c;
+  --color-inset: #121b30;
   /* a control ON a card. The dark skins take their `raised` value, so this
      is a no-op for them; the light skins need a tone of their own, because
      there `raised` is pure white and a card is too. */
-  --color-control: #282828;
-  --color-hairline: #383838;
+  --color-control: #2d3e5f;
+  --color-hairline: #3b4966;
   /* the 0.5px line where two panes meet: the sidebar and the chat */
-  --color-edge: color-mix(in srgb, var(--color-ink) 8%, transparent);
+  --color-edge: #414e69;
   /* the window's frame: its top bar and the rail of places, around the
      app's card (the sidebar and the chat). The sidebar's colour in every skin,
      so the bar, the rail and the sidebar read as one field. */
   --color-frame: var(--color-panel);
-  --color-ink: #f5f5f5;
-  --color-ink-secondary: #f5f5f5a8;
+  --color-ink: #f2f5ff;
+  --color-ink-secondary: #ced7f0;
   /* quiet text: timestamps, hints, placeholders, calendar hours. It used to
      be `text-ink-secondary/70`, which fades an ink already tuned close to
      AA and landed at 2.2–4:1. Each skin sets this to the quietest ink that
      still clears 4.5:1 on every text surface, raised-hover included; on the
      light skins that leaves little room below the secondary ink, so there
      size carries the hierarchy. Measured by pnpm check:contrast. */
-  --color-ink-tertiary: #f5f5f591;
-  --color-accent: #1084fe;
-  --color-accent-border: #459ffe;
+  --color-ink-tertiary: #b4bfd9;
+  --color-accent: #a9b6ff;
+  --color-accent-border: #b9c4ff;
   /* the ring a keyboard user follows; sits on the accent so focus reads as
      "the app is talking to you", not as a browser default */
-  --color-focus: #459ffe;
-  --color-accent-text: #7fc0ff;
-  --color-bubble-user: #5a5a5a;
-  --color-success: #38d591;
-  --color-danger: #ff5667;
-  --color-warning: #ff9800;
+  --color-focus: #b8c5ff;
+  --color-accent-text: #bac6ff;
+  --color-bubble-user: #303d74;
+  --color-success: #8cd7ba;
+  --color-danger: #ffafb9;
+  --color-warning: #ffd18e;
 
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont,
     "Segoe UI", system-ui, sans-serif;
@@ -254,37 +254,37 @@
    ───────────────────────────────────────────────────────────────────────── */
 [data-skin="midnight"] {
   --code-color-scheme: dark;
-  --color-app: #121212;
-  --color-panel: #0e0e0e;
-  --color-raised: #202020;
-  --color-raised-hover: #2c2c2c;
-  --color-composer: #1f1f1f;
-  --color-composer-ring: #2a2a2a;
-  --color-card: #1f1f1f;
-  --color-menu: #1f1f1f;    /* = card: unchanged */
-  --color-menu-hover: #f5f5f50f;
-  --color-menu-active: #f5f5f514;
-  --color-inset: #1b1b1b;
-  --color-control: #282828;
-  --color-hairline: #383838;
-  --color-ink: #f5f5f5;
-  --color-ink-secondary: #f5f5f5a8;
-  --color-ink-tertiary: #f5f5f591;
-  --color-accent: #1084fe;
-  --color-accent-border: #459ffe;
-  --color-accent-text: #7fc0ff;
-  --color-accent-ink: #10182b;
-  --color-bubble-user: #5a5a5a;
-  --color-bubble-user-ink: #f5f5f5;   /* = ink: unchanged */
-  --color-success: #38d591;
-  --color-danger: #ff5667;
-  --color-danger-ink: #251014;
-  --color-success-ink: #072114;
-  --color-warning: #ff9800;
-  --color-scrollbar: #3d3d3d;
+  --color-app: #12182a;
+  --color-panel: #0f1425;
+  --color-raised: #1b253c;
+  --color-raised-hover: #25334e;
+  --color-composer: #1b253c;
+  --color-composer-ring: #8796b6;
+  --color-card: #1b253c;
+  --color-menu: #1b253c;
+  --color-menu-hover: #f2f5ff0f;
+  --color-menu-active: #f2f5ff14;
+  --color-inset: #121b30;
+  --color-control: #2d3e5f;
+  --color-hairline: #3b4966;
+  --color-ink: #f2f5ff;
+  --color-ink-secondary: #ced7f0;
+  --color-ink-tertiary: #b4bfd9;
+  --color-accent: #a9b6ff;
+  --color-accent-border: #b9c4ff;
+  --color-accent-text: #bac6ff;
+  --color-accent-ink: #192245;
+  --color-bubble-user: #303d74;
+  --color-bubble-user-ink: #f2f5ff;
+  --color-success: #8cd7ba;
+  --color-danger: #ffafb9;
+  --color-danger-ink: #402024;
+  --color-success-ink: #122c25;
+  --color-warning: #ffd18e;
+  --color-scrollbar: #8997b3;
   --color-maus-line: #f5f5f5;
 
-  --color-edge: #f5f5f50f;
+  --color-edge: #414e69;
 
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont,
     "Segoe UI", system-ui, sans-serif;
@@ -745,40 +745,39 @@
    ───────────────────────────────────────────────────────────────────────── */
 [data-skin="daylight"] {
   --code-color-scheme: light;
-  --color-app: #fcfcfc;           /* the thread */
-  --color-panel: #f5f5f5;         /* sidebar */
-  --color-raised: #e4e4e4;        /* the sidebar's selected row: 8% ink on the panel */
-  --color-raised-hover: #d8d8d8;
-  --color-card: #efefef;          /* what a bot says: 6% ink on the page */
-  --color-inset: #e9e9e9;         /* the search field */
-  --color-control: #e3e3e3;       /* a chip on a card */
-  /* 24% ink: whole, the firm line; at /50, the 12% line between surfaces. */
-  --color-hairline: #1c1c1c3d;
-  --color-edge: #1c1c1c1f;
+  --color-app: #f2f5fb;
+  --color-panel: #f9fbff;
+  --color-raised: #ffffff;
+  --color-raised-hover: #e8edfa;
+  --color-card: #ffffff;
+  --color-inset: #eaf0f9;
+  --color-control: #dce3f3;
+  --color-hairline: #bdc9dc;
+  --color-edge: #cdd6e5;
 
-  --color-ink: #1c1c1c;
-  --color-ink-secondary: #1c1c1cad;
-  --color-ink-tertiary: #1c1c1ca6;
+  --color-ink: #171f34;
+  --color-ink-secondary: #404d68;
+  --color-ink-tertiary: #54627c;
 
-  --color-accent: #126fd4;
-  --color-accent-border: #1680f3;
-  --color-accent-text: #0b69cc;
-  --color-focus: #0b6dd3;
+  --color-accent: #344ac6;
+  --color-accent-border: #263baf;
+  --color-accent-text: #293fac;
+  --color-focus: #344ac6;
   --color-accent-ink: #ffffff;
   --color-composer: #ffffff;
-  --color-composer-ring: #1c1c1c1f;
+  --color-composer-ring: #7886a3;
   --color-menu: #ffffff;
-  --color-menu-hover: #1c1c1c0f;
-  --color-menu-active: #1c1c1c14;
-  --color-bubble-user: #1c1c1c;   /* your own messages, inverted */
-  --color-bubble-user-ink: #fcfcfc;
+  --color-menu-hover: #171f340f;
+  --color-menu-active: #171f3414;
+  --color-bubble-user: #1d2e6c;
+  --color-bubble-user-ink: #f2f5ff;
 
-  --color-success: #007a44;
-  --color-danger: #cd2834;
+  --color-success: #1c6553;
+  --color-danger: #a53146;
   --color-danger-ink: #ffffff;
   --color-success-ink: #ffffff;
-  --color-warning: #9c5b00;
-  --color-scrollbar: #c4c4c4;
+  --color-warning: #8b560d;
+  --color-scrollbar: #8592ac;
   --color-maus-line: #5f5f5f;
 
   --font-sans: "Geist Variable", -apple-system, BlinkMacSystemFont,
@@ -3316,14 +3315,6 @@ button:disabled.bg-danger {
    On Display P3 the same hue is a little more chromatic, with lightness
    held, so the skin reads less dull without moving the neutrals. */
 @media (color-gamut: p3) {
-  :is([data-skin="midnight"]) {
-    --color-accent: color(display-p3 0.2062 0.5041 0.9917);
-    --color-accent-border: color(display-p3 0.3457 0.6136 0.9909);
-    --color-accent-text: color(display-p3 0.5417 0.7465 0.9948);
-    --color-success: color(display-p3 0.3728 0.8349 0.5737);
-    --color-danger: color(display-p3 0.9587 0.3424 0.3958);
-    --color-warning: color(display-p3 0.9705 0.5992 0.0744);
-  }
   :is([data-skin="atelier"]) {
     --color-accent: color(display-p3 0.6084 0.3747 0.1500);
     --color-accent-border: color(display-p3 0.6696 0.4180 0.1773);
@@ -3377,15 +3368,6 @@ button:disabled.bg-danger {
     --color-success: color(display-p3 0.4731 0.6785 0.5159);
     --color-danger: color(display-p3 0.8279 0.4499 0.4734);
     --color-warning: color(display-p3 0.8014 0.6416 0.3675);
-  }
-  :is([data-skin="daylight"]) {
-    --color-accent: color(display-p3 0.1269 0.3689 0.7837);
-    --color-accent-border: color(display-p3 0.2062 0.5041 0.9917);
-    --color-accent-text: color(display-p3 0.1193 0.3464 0.7357);
-    --color-focus: color(display-p3 0.1269 0.3689 0.7837);
-    --color-success: color(display-p3 0.2075 0.4783 0.3054);
-    --color-danger: color(display-p3 0.7202 0.1738 0.2207);
-    --color-warning: color(display-p3 0.5270 0.3546 0.0278);
   }
   :is([data-skin="meadow"]) {
     --color-accent: color(display-p3 0.1985 0.4783 0.2864);
@@ -3454,18 +3436,18 @@ button:disabled.bg-danger {
   /* The window's frame keeps the desktop sidebar's colour at any width: the rail of places is a page 36px wide beside
      a full page, and both draw the frame's top bar or rail in one colour. */
   :is([data-skin="midnight"]) {
-    --color-frame: #0e0e0e;
-    --color-app: #141414;
-    --color-panel: #1c1c1e;
-    --color-raised: #2c2c2e;
-    --color-raised-hover: #3a3a3c;
-    --color-composer: #2c2c2e;
-    --color-composer-ring: #3a3a3c;
-    --color-card: #242426;
-    --color-menu: #2c2c2e;
-    --color-inset: #1c1c1e;
-    --color-control: #2c2c2e;
-    --color-hairline: #3a3a3c;
+    --color-frame: #0f1425;
+    --color-app: #12182a;
+    --color-panel: #0f1425;
+    --color-raised: #1b253c;
+    --color-raised-hover: #25334e;
+    --color-composer: #1b253c;
+    --color-composer-ring: #8796b6;
+    --color-card: #1b253c;
+    --color-menu: #1b253c;
+    --color-inset: #121b30;
+    --color-control: #2d3e5f;
+    --color-hairline: #3b4966;
     --radius-lg: 12px;
     --radius-xl: 18px;
     --radius-2xl: 22px;
