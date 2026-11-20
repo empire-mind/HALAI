@@ -113,23 +113,17 @@ function signedCredentials(overrides = {}) {
 }
 
 describe("Companion account service", () => {
-  it("uses the packaged hosted default and only explicit safe development origins", () => {
-    expect(resolveCompanionControlPlaneURL({ isPackaged: true, environment: {} })).toBe(
-      "https://accounts.openmausbot.com",
-    );
+  it("requires an explicit control plane and rejects unsafe or boxed origins", () => {
+    expect(resolveCompanionControlPlaneURL({ environment: {} })).toBe("");
     expect(resolveCompanionControlPlaneURL({
-      isPackaged: false,
       environment: { OMB_CONTROL_PLANE_URL: "http://127.0.0.1:8787/" },
     })).toBe("http://127.0.0.1:8787");
     expect(resolveCompanionControlPlaneURL({
-      isPackaged: true,
-      environment: { OMB_CONTROL_PLANE_URL: "http://accounts.openmausbot.com" },
+      environment: { OMB_CONTROL_PLANE_URL: "http://accounts.example" },
     })).toBe("");
     expect(resolveCompanionControlPlaneURL({
-      isPackaged: true,
-      environment: { OMB_CONTROL_PLANE_URL: new String("https://accounts.openmausbot.com") },
+      environment: { OMB_CONTROL_PLANE_URL: new String("https://accounts.example") },
     })).toBe("");
-    expect(resolveCompanionControlPlaneURL({ isPackaged: false, environment: {} })).toBe("");
   });
 
   it("does not coerce boxed credential fields into an account", async () => {

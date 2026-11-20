@@ -14,3 +14,5 @@ for (const name of await readdir(screenshotsSource)) {
 }
 
 await copyFile(iconSource, iconTarget);
+
+await copyFile(new URL('../../../public/halai-studio.mausbot-theme.json', import.meta.url), new URL('../public/halai-studio.mausbot-theme.json', import.meta.url));

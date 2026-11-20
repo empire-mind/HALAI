@@ -3,7 +3,7 @@ productName: OpenMausBot
 artifactName: OpenMausBot-${version}-${arch}.${ext}
 
 protocols:
-  - name: OpenMausBot package install
+  - name: HALAI package install
     schemes: [openmausbot]
 
 # In-app auto-update reads latest-mac.yml + the .zip (macOS) or latest.yml +
@@ -15,8 +15,8 @@ protocols:
 # stranded on its installed version.
 publish:
   - provider: github
-    owner: milind-soni
-    repo: OpenMausBot
+    owner: empire-mind
+    repo: HALAI
 
 directories:
   buildResources: build
@@ -104,7 +104,7 @@ mac:
       arch: [arm64, x64]
     - target: zip
       arch: [arm64, x64]
-  icon: build/icon.icns
+  icon: public/app-icon.svg
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
@@ -133,14 +133,15 @@ mac:
     - from: dist-native/duckdb/darwin-${arch}/node_modules
       to: duckdb/node_modules
   extendInfo:
-    NSMicrophoneUsageDescription: OpenMausBot uses the microphone for voice dictation into the composer.
-    NSSpeechRecognitionUsageDescription: OpenMausBot transcribes your voice on-device to type messages for you.
-    NSAccessibilityUsageDescription: OpenMausBot uses Accessibility when you let a bot control this Mac.
-    NSLocalNetworkUsageDescription: OpenMausBot connects to your phones and your other computers on this network and on Tailscale.
+    CFBundleDisplayName: HALAI
+    NSMicrophoneUsageDescription: HALAI uses the microphone for voice dictation into the composer.
+    NSSpeechRecognitionUsageDescription: HALAI transcribes your voice on-device to type messages for you.
+    NSAccessibilityUsageDescription: HALAI uses Accessibility when you let a bot control this Mac.
+    NSLocalNetworkUsageDescription: HALAI connects to your phones and your other computers on this network and on Tailscale.
     NSBonjourServices:
       - _openmausbot._tcp
-    NSScreenCaptureUsageDescription: OpenMausBot uses Screen Recording so bots can see this Mac before acting.
-    NSDownloadsFolderUsageDescription: OpenMausBot looks in Downloads for the file your Grok Bot saved when you move it here.
+    NSScreenCaptureUsageDescription: HALAI uses Screen Recording so bots can see this Mac before acting.
+    NSDownloadsFolderUsageDescription: HALAI looks in Downloads for the file your Grok Bot saved when you move it here.
   # Notarization runs manually after the build (notarytool + staple),
   # mirroring the BlueyLite ship_release.sh flow.
   notarize: false
@@ -169,7 +170,7 @@ win:
       arch: x64
     - target: zip
       arch: x64
-  icon: build/icon.ico
+  icon: public/app-icon.svg
   extraResources:
     - from: dist-native/cloudflared/win32-x64/cloudflared.exe
       to: cloudflared/cloudflared.exe
@@ -197,7 +198,7 @@ win:
 nsis:
   oneClick: true
   perMachine: false
-  shortcutName: OpenMausBot
+  shortcutName: HALAI
   # Versioned, like the .dmg. The README's /latest/download/ button needs a
   # STABLE filename, so ship a second copy named OpenMausBot-setup.exe on the
   # release — the same trick as OpenMausBot.dmg beside OpenMausBot-${version}.dmg.
@@ -211,13 +212,13 @@ linux:
       arch: x64
   # Keep the vector source in the freedesktop scalable icon hierarchy. A
   # lone 1024px PNG is not indexed by GNOME's hicolor theme on Ubuntu 24.04.
-  icon: build/icon.svg
+  icon: public/app-icon.svg
   category: Utility
   executableName: openmausbot
   synopsis: Your own team of AI bots, in a chat app
   description: A local-first chat app for running a team of AI agents.
   maintainer: Milind Soni <46266943+milind-soni@users.noreply.github.com>
-  vendor: OpenMausBot
+  vendor: EmpireMind
   syncDesktopName: true
   # The reviewed x64 CLI runtime is staged before packaging and remains
   # outside ASAR so executable modes and adjacent sidecars are preserved.
@@ -234,8 +235,8 @@ linux:
       to: openmausbot-browser.apparmor
   desktop:
     entry:
-      Name: OpenMausBot
-      Comment: Your own team of AI bots, in a chat app
+      Name: HALAI
+      Comment: A workspace for your AI team
       Keywords: AI;Agents;Chat;Productivity;
 
 deb:

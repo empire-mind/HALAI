@@ -36,9 +36,12 @@ lists them. The rest rely on review.
 
 ## 2. Where things go
 
-The app has three places: the **sidebar** (bots and conversations), the
-**chat**, and the **bot panel** (everything about one bot). Put new things
-where they belong instead of adding new places.
+The HALAI **Workbench** is a workspace view. Its Work, Agents, Review and
+Connections sections take people to their existing conversations, Inbox
+and settings. The **sidebar** remains the route to a workspace view or
+conversation. The **chat** and **bot panel** hold the details of one bot.
+Keep approval and account actions in their existing views so each route
+uses the same permissions.
 
 - **No new header buttons.** The chat header shows the bot, its model and its
   screen. Anything else goes in the bot panel, a menu or the command palette.

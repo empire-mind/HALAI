@@ -1,6 +1,18 @@
-export { HEADLESS_VERBS as HEADLESS_VERB_NAMES } from "./headless/args.ts";
+import { HEADLESS_VERBS as HEADLESS_VERB_NAMES } from "./headless/args.ts";
+
+export { HEADLESS_VERB_NAMES };
+
+export function isHeadlessInvocation(argv: readonly string[]): boolean {
+  const command = argv[0] ?? "";
+  if (command === "status") return argv.slice(1).some((arg) => arg === "--url" || arg.startsWith("--url="));
+  return HEADLESS_VERB_NAMES.has(command) || (command === "help" && HEADLESS_VERB_NAMES.has(argv[1] ?? ""));
+}
 
 export const HEADLESS_USAGE = `Drive a running workspace (scripts, CI, other agents):
+  openmausbot status --url URL         read the workspace's status and bots
+  openmausbot bots get BOT             inspect one bot by name or id
+  openmausbot threads list BOT         list a bot's conversations
+  openmausbot computers list           list computer assignments and visible cloud state
   openmausbot doctor                    check the server answers and an engine is ready
   openmausbot doctor --host             check this Linux machine can run a server (exit 7 if not)
   openmausbot doctor --data [--fix]     check (and safely repair) this computer's data folder (exit 8 if a problem is left)

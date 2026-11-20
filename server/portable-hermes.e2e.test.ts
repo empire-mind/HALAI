@@ -79,8 +79,16 @@ for line in sys.stdin:
     const hermes = catalog.instances.find((instance: any) => instance.instanceId === "hermes");
     expect(hermes.cli).toBe(shim);
     expect(hermes.snapshot).toMatchObject({ state: "available", version: "Hermes 1.4.17" });
-    const models = await runControlOmb(["models", "--url", url]);
-    expect(JSON.stringify(models)).toContain("fixture/model");
+    let models: unknown;
+    await expect.poll(async () => {
+      models = await runControlOmb(["models", "--url", url]);
+      return models;
+    }, { timeout: 30_000 }).toMatchObject({
+      instances: expect.arrayContaining([expect.objectContaining({
+        instanceId: "hermes",
+        models: expect.objectContaining({ options: expect.arrayContaining([expect.objectContaining({ id: "fixture/model", label: "Fixture model" })]) }),
+      })]),
+    });
     const launches = readFileSync(join(home, "launches.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
     expect(launches.some((launch) => launch.args[0] === "--version")).toBe(true);
     expect(launches.some((launch) => launch.args[0] === "acp")).toBe(true);

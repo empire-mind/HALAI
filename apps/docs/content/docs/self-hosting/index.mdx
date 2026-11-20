@@ -1,55 +1,31 @@
 ---
-title: Self-hosting MausBot
+title: Self-hosting HALAI
 description: Run the harness and desktop app on infrastructure you control.
 icon: Server
 ---
 
-MausBot is local-first by default: the harness listens on loopback, agent CLIs run on your machine, and application state lives under `~/.openmausbot`.
+HALAI runs locally by default. The harness listens on loopback, agent CLIs run on your machine and application state uses the existing `~/.openmausbot` location.
 
-If you only want to use a remote Docker desktop while MausBot and its agents stay on your current computer, follow [Your own VPS (BYO)](/docs/computers/byo-vps) instead.
+For a remote Docker desktop with the harness still on your computer, see [Your own VPS (BYO)](/docs/computers/byo-vps).
 
-## On a server, with one command
+## Choose the build for your server
 
-On a fresh Ubuntu 22.04 or 24.04 server (x86-64) with a domain name pointing at it, the installer checks the server, installs MausBot with Docker under `/opt/openmausbot` and ends with HTTPS on your domain:
+Use [HALAI releases](https://github.com/empire-mind/HALAI/releases) for the server images and instructions published by EmpireMind. For a source evaluation, [install HALAI from a pinned revision](/docs/getting-started/installation#source-workspace) in an isolated workspace. The [OpenMausBot VPS reference](/docs/self-hosting/deploy-vps) documents the upstream one-command installer and its distribution.
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/milind-soni/OpenMausBot/main/deploy/install.sh | sudo sh -s -- --domain maus.example.com
-```
+## Connect a device
 
-Add `--check` to only check the server; it changes nothing. Run the command again to update or repair, and `--uninstall` to stop the server while keeping your data. [Deploy on a VPS](/docs/self-hosting/deploy-vps#quick-start-one-command-on-your-own-domain) lists every check, the files it writes and how the first admin signs in.
+1. Keep the harness on loopback and follow the [networking guide](/docs/self-hosting/networking) for the approved connection method.
+2. Install and authenticate the agent CLIs you need using the same operating-system account that runs the server.
+3. Create a pairing link for the intended device. Use **＋ → Connect to a server** in the desktop app, or open the link in the browser on the device you are pairing.
+4. Check the list of paired devices and remove access for devices no longer in use.
 
-## On your own computer, or by hand
+## Back up the workspace
 
-1. Run MausBot on your personal macOS, Windows, or Ubuntu computer.
-2. Install and authenticate the agent CLIs you want to use separately; the npm OpenMausBot package does not include them. Use the same operating-system account for setup and the running server.
-3. Add optional third-party keys only for the services you need.
-4. Keep the harness on loopback.
-5. Use it from other devices by pairing them. `openmausbot serve` prints one pairing link for the way in you choose; paste it into the desktop app under **＋ → Connect to a server**, open it in a browser, or scan its QR with a phone.
+Stop the server before a filesystem backup. Follow [Data and backups](/docs/self-hosting/data-and-backups) for the workspace data, browser state and engine credentials. Keep credentials in the approved secret store and rehearse restoration on an isolated copy.
 
-| You have | Run |
-|---|---|
-| HTTPS in front already (cloudflared, Caddy, nginx) | `npx openmausbot serve --public-url https://maus.example.com` |
-| A domain name, ports 80 and 443 open | `npx openmausbot serve --domain maus.example.com` |
-| Tailscale | `npx openmausbot serve --tailscale` |
-| Only this network | `npx openmausbot serve --lan` |
-| Nothing at all | `npx openmausbot login`, then `npx openmausbot serve --tunnel` |
+## Optional services
 
-A code works once, for 10 minutes. `npx openmausbot pair` makes another, and `npx openmausbot devices` lists the paired devices. See [Deploy on a VPS](/docs/self-hosting/deploy-vps) for a server from scratch, and [Networking](/docs/self-hosting/networking).
-
-For a Linux service, the VPS guide covers [account setup](/docs/self-hosting/deploy-vps#before-you-start), [browser installation](/docs/self-hosting/deploy-vps#give-the-bots-a-browser-optional), and [unattended startup](/docs/self-hosting/deploy-vps#keep-it-running). Installing browser libraries as administrator still requires installing the browser in the service user's home. The service runs an installed, chosen release; upgrading it is an explicit step.
-
-Stop the server before a filesystem backup. Application state under `.openmausbot` is only part of a complete backup: preserve the service user's engine credentials, browser state, and external workspaces too. See [Data and backups](/docs/self-hosting/data-and-backups).
-
-## What is still third party
-
-Self-hosting MausBot does not self-host every optional provider:
-
-- Agent providers authenticate and bill through their own CLI or API.
-- Composio owns connected-app OAuth grants unless you replace that integration.
-- Boat owns managed cloud computers.
-- ElevenLabs or Fish Audio synthesizes speech when its hosted voice engine is enabled. On Windows and Linux, Fish Audio also turns what you say into text for Take turns calls and dictation.
-
-These services are optional. Local chat through a locally installed agent CLI does not require them.
+Agents, connected apps, cloud computers and hosted voice use their own providers when enabled. Confirm the provider for your build before connecting accounts. See [Permissions and secrets](/docs/security/permissions-and-secrets) and [Model providers](/docs/providers/model-providers).
 
 ## Run headless during development
 

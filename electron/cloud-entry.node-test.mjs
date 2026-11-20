@@ -168,6 +168,17 @@ test("Add a Cloud… is always the sheet on this computer's page, never a native
   assert.match(add, /const action = source === "app_howto" \? "cloud-add-howto" : "cloud-add";/);
   assert.deepEqual([...add.matchAll(/webContents\.send\(([^)]*)\)/g)].map(match => match[1]), ['"app:open-settings", action']);
   assert.deepEqual([...add.matchAll(/loadURL\((.*)\);/g)].map(match => match[1]), ["`${rendererOrigin()}/?desktop-settings=${action}`"]);
-  assert.match(between("function cloudOffersAllowed()", "\n}\n"), /return app\.isPackaged && !desktopRemoteAccess && brandedBuild === false;/);
+  const offers = [
+    between("function upstreamCloudEnabled()", "\n}\n") + "\n}",
+    between("function cloudOffersAllowed()", "\n}\n") + "\n}",
+    "cloudOffersAllowed()",
+  ].join("\n");
+  const packagedLocal = { app: { isPackaged: true }, desktopRemoteAccess: false, brandedBuild: false };
+  const optIn = { env: { HALAI_ENABLE_UPSTREAM_CLOUD: "1" } };
+  assert.equal(runInNewContext(offers, { ...packagedLocal, process: { env: {} } }), false);
+  assert.equal(runInNewContext(offers, { ...packagedLocal, process: optIn }), true);
+  assert.equal(runInNewContext(offers, { ...packagedLocal, process: optIn, app: { isPackaged: false } }), false);
+  assert.equal(runInNewContext(offers, { ...packagedLocal, process: optIn, desktopRemoteAccess: true }), false);
+  assert.equal(runInNewContext(offers, { ...packagedLocal, process: optIn, brandedBuild: true }), false);
   assert.match(between("async function readCloudOfferBrand()", "\n}\n"), /fetch\(`http:\/\/127\.0\.0\.1:\$\{SERVER_PORT\}\/api\/brand`/);
 });

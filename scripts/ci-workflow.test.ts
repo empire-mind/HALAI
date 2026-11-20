@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
+import { parse, stringify } from "yaml";
 import { EVALS_LANE, PACKAGED_SERVER_LANE, vitestLane } from "./ci-linux-lanes.mjs";
 import { SELECTABLE_JOBS, vitestMatrix } from "./ci-scope.mjs";
 import { interpolate } from "./testing/github-expression.ts";
@@ -30,6 +33,21 @@ function gateNeeds(selected: string[]) {
     ...Object.fromEntries(requiredRuntimeJobs.map((job) => [job, { result: selected.includes(job) ? "success" : "skipped" }])),
   };
 }
+
+describe("pnpm bootstrap", () => {
+  it("bootstraps the pinned pnpm after checkout using approved actions", () => {
+    const setup = parse(readFileSync(new URL("../.github/actions/setup-pnpm/action.yml", import.meta.url), "utf8"));
+    expect(setup.runs.using).toBe("composite");
+    expect(setup.runs.steps[0].uses).toMatch(/^actions\/setup-node@[a-f0-9]{40}$/);
+    expect(setup.runs.steps[1].run).toContain("corepack enable pnpm");
+    expect(setup.runs.steps[2].uses).toMatch(/^actions\/cache@[a-f0-9]{40}$/);
+    expect(workflow.jobs.static.steps[1].uses).toBe("./.github/actions/setup-pnpm");
+    expect(workflow.jobs.relay.steps[1]).toEqual({
+      uses: "./.github/actions/setup-pnpm",
+      with: { directory: "relay" },
+    });
+  });
+});
 
 describe("CI concurrency", () => {
   it("supersedes old PR checks but never cancels a running main or merge-queue run", () => {
@@ -156,6 +174,62 @@ describe("CI concurrency", () => {
     expect(workflow.on).toHaveProperty("workflow_dispatch");
   });
 
+  it("checks the packaged desktop feed against the HALAI release repository on every platform", () => {
+    const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+    const builder = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+    expect(builder.publish).toEqual([{ provider: "github", owner: "empire-mind", repo: "HALAI" }]);
+    for (const platform of ["mac", "windows", "linux"]) {
+      const commands = release.jobs[platform].steps.map((step: { run?: string }) => step.run).join("\n");
+      expect(commands).toMatch(/node scripts\/verify-desktop-update-feed\.mjs .*app-update\.yml/);
+      expect(commands).not.toContain("milind-soni");
+    }
+  });
+
+  it("keeps HALAI desktop releases on the canonical repository without a legacy mirror", () => {
+    const releaseURL = new URL("../.github/workflows/release.yml", import.meta.url);
+    const release = parse(readFileSync(releaseURL, "utf8"));
+    const prepared = readFileSync(new URL("../.github/workflows/prepare-release.yml", import.meta.url), "utf8");
+    const mirror = parse(readFileSync(new URL("../.github/workflows/sync-published-release.yml", import.meta.url), "utf8"));
+    const npm = parse(readFileSync(new URL("../.github/workflows/npm-package.yml", import.meta.url), "utf8"));
+    expect(release.jobs.prepare.if).toBe("github.repository == 'empire-mind/HALAI'");
+    expect(JSON.stringify(release)).not.toMatch(/RELEASES_PAT|milind-soni|npm-package\.yml/);
+    expect(prepared).not.toMatch(/RELEASES_PAT|milind-soni/);
+    expect(mirror.jobs.mirror.if).toMatch(/^github.repository == 'milind-soni\/OpenMausBot' && /);
+    expect(npm.jobs["publish-npm"].if).toMatch(/^github.repository == 'milind-soni\/OpenMausBot' && /);
+    const publish = release.jobs.assemble.steps.find((step: { name?: string }) => step.name === "Publish (only when asked to)");
+    expect(publish.if).toBe("${{ inputs.publish }}");
+  });
+
+  it("accepts the configured HALAI feed and rejects a mismatched package or workflow repository", () => {
+    const builder = parse(readFileSync(new URL("../electron-builder.yml", import.meta.url), "utf8"));
+    const fixture = mkdtempSync(join(tmpdir(), "halai-updater-test-"));
+    const metadata = join(fixture, "app-update.yml");
+    const script = fileURLToPath(new URL("./verify-desktop-update-feed.mjs", import.meta.url));
+    const run = (feed: object, repository = "empire-mind/HALAI") => {
+      writeFileSync(metadata, stringify(feed));
+      return spawnSync(process.execPath, [script, metadata], {
+        env: { ...process.env, GITHUB_REPOSITORY: repository },
+        encoding: "utf8",
+        timeout: 5_000,
+      });
+    };
+    try {
+      const [feed] = builder.publish;
+      expect(run(feed)).toMatchObject({ status: 0, stdout: expect.stringContaining("empire-mind/HALAI") });
+      for (const override of [
+        { owner: "milind-soni", repo: "OpenMausBot" },
+        { host: "updates.example.test" },
+        { protocol: "http" },
+        { private: true },
+      ]) {
+        expect(run({ ...feed, ...override })).toMatchObject({ status: 1, stderr: expect.stringContaining("public HTTPS updater feed") });
+      }
+      expect(run(feed, "milind-soni/OpenMausBot")).toMatchObject({ status: 1, stderr: expect.stringContaining("Desktop releases belong to empire-mind/HALAI") });
+    } finally {
+      rmSync(fixture, { recursive: true, force: true });
+    }
+  });
+
   it("checks out every module the release gate imports", () => {
     const release = parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
     const checkout = release.jobs.ci.steps.find((step: { uses?: string }) => step.uses?.startsWith("actions/checkout@"));
@@ -275,11 +349,10 @@ describe("CI concurrency", () => {
     )).toBe(true);
     for (const [name, job] of Object.entries(workflow.jobs) as [string, { needs?: string | string[]; if?: string }][]) {
       if (["static", "gate"].includes(name)) continue;
-      // The one deploy job: after the control-plane checks, on main pushes only. It is
-      // not part of the merge gate.
+      // The upstream broker deploy runs after the control-plane checks.
       if (name === "deploy-composio-broker") {
         expect(job.needs).toEqual(["control-plane"]);
-        expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+        expect(job.if).toBe("github.repository == 'milind-soni/OpenMausBot' && github.event_name == 'push' && github.ref == 'refs/heads/main'");
         expect(workflow.jobs.gate.needs).not.toContain(name);
         // Without the Cloudflare token the deploy is skipped with a warning, not failed:
         // every step after the token check waits on it.
@@ -290,7 +363,7 @@ describe("CI concurrency", () => {
         for (const step of rest) expect(step.if).toBe("steps.token.outputs.present == 'true'");
         // The broker is typechecked and tested in the same checkout it deploys.
         const runs = rest.map((step) => step.run);
-        const deploy = rest.findIndex((step) => (step as { uses?: string }).uses?.startsWith("cloudflare/wrangler-action@"));
+        const deploy = runs.indexOf("pnpm broker:deploy");
         expect(runs.indexOf("pnpm broker:check")).toBeGreaterThan(-1);
         expect(runs.indexOf("pnpm broker:check")).toBeLessThan(deploy);
         expect(runs.indexOf("pnpm broker:test")).toBeGreaterThan(-1);

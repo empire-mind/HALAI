@@ -229,16 +229,14 @@ function serveStatic(req, res, staticDir) {
   res.end(data);
 }
 
-export function desktopCompanionProxyTarget(endpoint, requestUrl) {
-  const incoming = new URL(requestUrl ?? "/", "http://loopback.invalid");
-  const target = new URL(`${incoming.pathname}${incoming.search}`, endpoint);
-  if (target.origin !== new URL(endpoint).origin) throw new Error("Invalid remote request target");
-  return target;
+export function desktopCompanionProxyPath(requestUrl) {
+  const { pathname, search } = new URL(requestUrl ?? "/", "http://loopback.invalid");
+  return `${pathname}${search}`;
 }
 
 export function proxyDesktopCompanionApi(req, res, access) {
-  const target = desktopCompanionProxyTarget(access.endpoint, req.url);
-  const request = target.protocol === "https:" ? httpsRequest : httpRequest;
+  const pairedOrigin = new URL(access.endpoint);
+  const request = pairedOrigin.protocol === "https:" ? httpsRequest : httpRequest;
   const headers = {
     accept: String(req.headers.accept ?? "*/*"),
     authorization: `Bearer ${access.token}`,
@@ -247,7 +245,7 @@ export function proxyDesktopCompanionApi(req, res, access) {
     const value = req.headers[name];
     if (typeof value === "string") headers[name] = value;
   }
-  const upstream = request(target, { method: req.method, headers }, (remote) => {
+  const upstream = request(pairedOrigin, { path: desktopCompanionProxyPath(req.url), method: req.method, headers }, (remote) => {
     upstream.setTimeout(0);
     const responseHeaders = {};
     for (const name of ["content-type", "content-length", "content-disposition", "cache-control"]) {
@@ -301,18 +299,19 @@ function writeUpgrade(socket, response) {
 }
 
 export function proxyDesktopCompanionUpgrade(req, socket, head, access, activeSockets = new Set()) {
-  let target;
+  let requestPath;
   try {
-    target = desktopCompanionProxyTarget(access.endpoint, req.url);
+    requestPath = desktopCompanionProxyPath(req.url);
   } catch {
     socket.destroy();
     return;
   }
-  if (!target.pathname.startsWith("/vps-viewer/")) return socket.destroy();
+  if (!requestPath.startsWith("/vps-viewer/")) return socket.destroy();
   const headers = websocketHeaders(req, `Bearer ${access.token}`);
   if (!headers) return socket.destroy();
-  const request = target.protocol === "https:" ? httpsRequest : httpRequest;
-  const upstream = request(target, { method: "GET", headers });
+  const pairedOrigin = new URL(access.endpoint);
+  const request = pairedOrigin.protocol === "https:" ? httpsRequest : httpRequest;
+  const upstream = request(pairedOrigin, { path: requestPath, method: "GET", headers });
   upstream.setTimeout(30_000, () => upstream.destroy(new Error("The remote viewer did not answer")));
   upstream.once("upgrade", (response, remote, remoteHead) => {
     upstream.setTimeout(0);

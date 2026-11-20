@@ -1,8 +1,6 @@
 name: npm package
 
 on:
-  # release.yml dispatches this on the tag it just published: a tag created
-  # with the workflow token never fires push events on its own.
   workflow_dispatch:
   push:
     tags: ["v*"]
@@ -26,10 +24,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+      - name: Enable the pinned pnpm version
+        run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
@@ -37,6 +36,8 @@ jobs:
       - name: Prove the packed tarball runs with no node_modules at all
         run: |
           set -euo pipefail
+          enterprise_present=false
+          if [ -d enterprise ]; then enterprise_present=true; fi
           cd release/npm && npm pack --silent && cd ../..
           rm -rf /tmp/omb-pack && mkdir -p /tmp/omb-pack && tar -xzf release/npm/openmausbot-*.tgz -C /tmp/omb-pack
           cd /tmp/omb-pack/package
@@ -62,8 +63,12 @@ jobs:
           grep -q "No MausBot server is running here" pair.out
           # --tunnel ships its own processes and fails closed without an account
           test -f dist-server/tunnel-guardian.js && test -f dist-server/prepare-cloudflared.js
-          # the enterprise layer ships bundled (inert without a key) so a white-label key works on an npm install
-          test -f enterprise/server/index.js && test -f enterprise/LICENSE
+          test -s LICENSE && test -s NOTICE
+          if [ "$enterprise_present" = true ]; then
+            test -f enterprise/server/index.js && test -f enterprise/LICENSE
+          else
+            test ! -e enterprise && test ! -e dist-server/enterprise
+          fi
           if HOME=/tmp/omb-pack/home node cli.js serve --tunnel --port 18798 --data-dir /tmp/omb-pack/data2 > tunnel.log 2>&1; then echo "serve --tunnel should refuse without login"; exit 1; fi
           grep -q "run openmausbot login first" tunnel.log
           kill %1; wait %1 || true
@@ -96,7 +101,7 @@ jobs:
   publish-npm:
     name: publish to npm
     needs: pack-and-prove
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.repository == 'milind-soni/OpenMausBot' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

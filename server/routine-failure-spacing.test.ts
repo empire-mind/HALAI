@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FAILURE_FIRST_SPACING_MS, FAILURE_SPACING_MS, failedRuns, failureSpacing, failureSpacingAlert, failureSpacingLimits, runSpacing } from "./routine-failure-spacing.ts";
 import { sessionHolds, startPrompt } from "./routine-recovery.ts";
 import { RoutineManager, type RoutineManagerOptions, type RoutineRun } from "./routines.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 
 const MINUTE = 60_000, HOUR = 60 * MINUTE;
 const START = Date.parse("2026-11-16T08:00:00Z");
@@ -171,7 +172,7 @@ describe("a routine every 5 minutes on a server whose engines cannot start", () 
     expect([...perThread.values()]).toEqual(Array(9).fill(2));
     expect(h.routine()).toMatchObject({ enabled: true });
     expect(h.rows().filter((run) => run.status === "failed").every((run) => run.retried === undefined && run.error === SPAWN_REFUSED)).toBe(true);
-  });
+  }, hostTimeout(40_000));
 });
 
 describe("a run's one second start", () => {

@@ -1,6 +1,5 @@
-// The HTTPS backchannel is injected, never redirected to a real portal.
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { request, type IncomingMessage } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -10,23 +9,32 @@ import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
 import { freePortBlock } from "./testing/ports.ts";
 import { SessionRegistry } from "./sessions.ts";
 import { HOSTED_CONTRACT_HEADER, HOSTED_CONTRACT_METADATA } from "./hosted-contract.ts";
+import { loadEnvironmentId } from "./environment.ts";
+import { sessionCookieName } from "./request-auth.ts";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const ENTERPRISE_ACCESS = join(ROOT, "enterprise/server/workspace-access.ts");
+const HAS_ENTERPRISE_ACCESS = existsSync(ENTERPRISE_ACCESS);
 let PORT: number;
 const HOST = "acme.example.test";
 const EMAIL = "member@example.test";
+const FIXTURE_MEMBER_EMAIL = "fixture-member@example.test";
 const INSTANCES = { fixture: { driver: "hosted-access-test-shadow" }, claude: {
   driver: "claudeAgent", config: { cli: join(ROOT, "server/testing/fake-claude-cli.ts") },
 } };
 let home: string;
+let data: string;
+let fixtureLayer: string;
 let stateFile: string;
-let child: ChildProcess;
+let child: ChildProcess | undefined;
 let log = "";
-let pairedToken: string;
+let pairedToken = "";
+let fixtureCookies: { admin: string; member: string };
+let fixtureSessionIds: readonly string[] = [];
 let fixtureEnv: NodeJS.ProcessEnv;
 let policyBotId: string | undefined;
 const policyEvidence: unknown[] = [];
-const state = (role: string | null = "admin", outage = false, license: { features?: string[]; expiresAt?: string; invalid?: boolean } = {}) => writeFileSync(stateFile, JSON.stringify({ role, outage, license }));
+const state = (role: string | null = "admin", outage = false, license: { features?: string[]; graceRemainingMs?: number; invalid?: boolean } = {}) => writeFileSync(stateFile, JSON.stringify({ role, outage, license }));
 
 function call(path: string, options: { method?: string; cookie?: string; token?: string; local?: boolean; body?: unknown } = {}) {
   return new Promise<{ status: number; body: any; cookies: string[]; location?: string; contractVersion?: string | string[] }>((resolve, reject) => {
@@ -62,7 +70,7 @@ async function policyHealth(enabled: boolean, cookie?: string) {
   expect(health.status).toBe(200);
   expect(health.body.capabilities.guardedFullAccess).toBe(1);
   expect(health.body.capabilities.sharedWorkspaceFullAccess).toBe(enabled ? 1 : undefined);
-  policyEvidence.push({ health: health.body, authenticatedAs: cookie ? "portal session" : "loopback" });
+  policyEvidence.push({ health: health.body, authenticatedAs: cookie ? "pre-issued fixture session" : "loopback" });
 }
 async function refuseFullTask(cookie?: string) {
   const botId = await policyBot();
@@ -72,7 +80,7 @@ async function refuseFullTask(cookie?: string) {
     body: { title: "Must not become Full", approvalMode: "full" } });
   expect(denied.status, JSON.stringify(denied.body)).toBe(403);
   expect((await bots()).find((bot: any) => bot.id === botId)).toEqual(before);
-  policyEvidence.push({ deniedFullTask: denied.body, status: denied.status, authenticatedAs: cookie ? "portal session" : "loopback" });
+  policyEvidence.push({ deniedFullTask: denied.body, status: denied.status, authenticatedAs: cookie ? "pre-issued fixture session" : "loopback" });
 }
 async function login() {
   const start = await call("/api/auth/hosted/start");
@@ -82,63 +90,78 @@ async function login() {
   expect(callback.status).toBe(302);
   return callback.cookies.find((value) => !value.startsWith("__Host-"))!.split(";")[0];
 }
-async function restart(env: NodeJS.ProcessEnv = {}) {
+async function restart(env: NodeJS.ProcessEnv = {}, withFixtureSessions = true) {
   await waitForExit(child, { signal: "SIGTERM" });
+  if (withFixtureSessions) seedFixtureSessions();
   child = spawn(process.execPath, [join(ROOT, "server/index.ts")], { cwd: ROOT, env: { ...fixtureEnv, ...env }, stdio: ["ignore", "pipe", "pipe"] });
   child.stdout?.on("data", (chunk) => log += chunk); child.stderr?.on("data", (chunk) => log += chunk);
-  await expect.poll(async () => {
-    try { return (await call("/api/health", { local: true })).status; } catch { return 0; }
-  }, { timeout: 20_000 }).toBe(200);
-}
-
-beforeAll(async () => {
-  PORT = await freePortBlock([0, 1], 35_000, 5_000);
-  home = mkdtempSync(join(tmpdir(), "omb-hosted-server-"));
-  stateFile = join(home, "portal-fixture.json"); state();
-  const data = join(home, ".openmausbot");
-  const layer = join(home, "enterprise");
-  mkdirSync(join(layer, "server"), { recursive: true });
-  mkdirSync(join(home, "static"));
-  writeFileSync(join(home, "static", "index.html"), "<!doctype html><title>Fixture workspace</title>");
-  const sessions = new SessionRegistry({ file: join(data, "sessions.json") });
-  pairedToken = sessions.issue({ label: "Pre-existing QR device", scopes: ["admin", "client"] }).token;
-  writeFileSync(join(data, "config.json"), JSON.stringify({ signIn: { admins: [EMAIL] }, instances: INSTANCES }));
-  writeFileSync(join(layer, "server", "index.ts"), `
-    import { readFileSync } from 'node:fs';
-    import { createWorkspaceAccess as create } from ${JSON.stringify(pathToFileURL(join(ROOT, "enterprise/server/workspace-access.ts")).href)};
-    export function register() {
-      const { license } = JSON.parse(readFileSync(${JSON.stringify(stateFile)}, 'utf8'));
-      if (license.invalid) throw new Error('invalid fixture license');
-      return { customer: 'Fixture', features: license.features ?? ['admin'], expiresAt: license.expiresAt ?? null };
-    }
-    export function createWorkspaceAccess(options) {
-      return create({ ...options, fetchImpl: async (url, init) => {
-        if (new URL(url).origin !== 'https://admin.example.test') throw new Error('unexpected outbound origin');
-        const current = JSON.parse(readFileSync(${JSON.stringify(stateFile)}, 'utf8'));
-        if (current.outage) throw new Error('offline fixture');
-        const body = JSON.parse(init.body);
-        if (body.workspace !== 'acme' || !current.role) return Response.json({}, { status: 401 });
-        return Response.json({ email: ${JSON.stringify(EMAIL)}, role: current.role, grant: 'g'.repeat(43) });
-      } });
-    }
-  `);
-  child = spawn(process.execPath, [join(ROOT, "server/index.ts")], { cwd: ROOT, env: fixtureEnv = {
-    ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
-    ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-    HOME: home, USERPROFILE: home, OMB_PORT: String(PORT), OMB_WEBHOOK_PORT: String(PORT + 1),
-    OMB_STATIC_DIR: join(home, "static"), OMB_BROWSER_CONNECTION: join(home, "browser-connection.json"),
-    OMB_ENTERPRISE_DIR: layer, OMB_LICENSE_KEY: "fixture-only", OMB_ADMIN_URL: "https://admin.example.test",
-    OMB_ADMIN_WORKSPACE: "acme", OMB_PUBLIC_URL: `https://${HOST}`,
-    // These cases set fixtures up over loopback, so they keep the owner; the hosted default (service) has its own case.
-    OMB_LOOPBACK_TRUST: "owner",
-  }, stdio: ["ignore", "pipe", "pipe"] });
-  child.stdout?.on("data", (chunk) => log += chunk); child.stderr?.on("data", (chunk) => log += chunk);
   const deadline = Date.now() + 20_000;
-  while (Date.now() < deadline) {
-    try { if ((await call("/api/health", { local: true })).status === 200) return; } catch {}
+  while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
+    try {
+      const health = await call("/api/health", { local: true });
+      if (health.status === 200 && health.body.pid === child.pid) return;
+    } catch {}
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error(`Owned hosted fixture failed to start:\n${log}`);
+}
+
+function installAccessHook(layer: string, accessHook: string) {
+  mkdirSync(join(layer, "server"), { recursive: true });
+  writeFileSync(join(layer, "server/index.ts"), `
+    import { readFileSync } from 'node:fs';
+    ${accessHook}
+    export function register() {
+      const { license } = JSON.parse(readFileSync(${JSON.stringify(stateFile)}, 'utf8'));
+      if (license.invalid) throw new Error('invalid fixture license');
+      const expiresAt = license.graceRemainingMs === undefined ? null
+        : new Date(Date.now() - 7 * 86_400_000 + license.graceRemainingMs).toISOString();
+      return { customer: 'Fixture', features: license.features ?? ['admin'], expiresAt };
+    }
+  `);
+}
+
+function seedFixtureSessions() {
+  // A Windows child stopped by its parent cannot run the normal session close handler.
+  const sessions = new SessionRegistry({ file: join(data, "sessions.json"), portalMembership: true });
+  for (const id of fixtureSessionIds) sessions.revoke(id);
+  if (!pairedToken) pairedToken = sessions.issue({ label: "Pre-existing QR device", scopes: ["admin", "client"] }).token;
+  const admin = sessions.issuePortal({ email: EMAIL, grant: "a".repeat(43), scopes: ["admin", "client"] });
+  const member = sessions.issuePortal({ email: FIXTURE_MEMBER_EMAIL, grant: "m".repeat(43), scopes: ["client"] });
+  sessions.close();
+  const cookieName = sessionCookieName(PORT, loadEnvironmentId(data));
+  fixtureCookies = { admin: `${cookieName}=${admin.token}`, member: `${cookieName}=${member.token}` };
+  fixtureSessionIds = [admin.session.id, member.session.id];
+  installAccessHook(fixtureLayer, `
+    import { createFixtureWorkspaceAccess } from ${JSON.stringify(new URL("./testing/hosted-access-fixture.ts", import.meta.url).href)};
+    export function createWorkspaceAccess(options) {
+      return createFixtureWorkspaceAccess(options, ${JSON.stringify(fixtureSessionIds)});
+    }
+  `);
+}
+
+beforeAll(async () => {
+  if (!HAS_ENTERPRISE_ACCESS) console.info("Hosted portal exchange and revocation checks require enterprise/server/workspace-access.ts.");
+  PORT = await freePortBlock([0, 1], 35_000, 5_000);
+  home = mkdtempSync(join(tmpdir(), "omb-hosted-server-"));
+  stateFile = join(home, "portal-fixture.json"); state();
+  data = join(home, ".openmausbot");
+  fixtureLayer = join(home, "fixture-layer");
+  mkdirSync(join(home, "static"));
+  writeFileSync(join(home, "static", "index.html"), "<!doctype html><title>Fixture workspace</title>");
+  mkdirSync(data, { recursive: true });
+  writeFileSync(join(data, "config.json"), JSON.stringify({ signIn: { admins: [EMAIL], members: [FIXTURE_MEMBER_EMAIL] }, instances: INSTANCES }));
+  fixtureEnv = {
+    ...(process.env.PATH ? { PATH: process.env.PATH } : {}),
+    ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+    HOME: home, USERPROFILE: home, OMB_DATA_DIR: data, OMB_PORT: String(PORT), OMB_WEBHOOK_PORT: String(PORT + 1),
+    OMB_STATIC_DIR: join(home, "static"), OMB_BROWSER_CONNECTION: join(home, "browser-connection.json"),
+    OMB_ENTERPRISE_DIR: fixtureLayer, OMB_LICENSE_KEY: "fixture-only", OMB_ADMIN_URL: "https://admin.example.test",
+    OMB_ADMIN_WORKSPACE: "acme", OMB_PUBLIC_URL: `https://${HOST}`, OMB_ADMIN_MEMBERSHIP: "portal",
+    // These cases set fixtures up over loopback, so they keep the owner; the hosted default (service) has its own case.
+    OMB_LOOPBACK_TRUST: "owner",
+  };
+  await restart();
 }, 30_000);
 afterAll(async () => {
   await waitForExit(child, { signal: "SIGTERM" });
@@ -151,38 +174,35 @@ afterAll(async () => {
   await removeTempDir(home);
 });
 
-describe("hosted bridge in the full server", () => {
-  it("loads the optional hook before listening, redirects hosted navigation, and disables legacy sign-in", async () => {
+describe("hosted HTTP policy with a fixture access hook", () => {
+  it("loads the fixture hook before listening, attests readiness, and disables legacy sign-in", async () => {
     expect(log).toContain("enterprise edition for Fixture");
-    expect((await call("/")).location).toBe("/api/auth/hosted/start");
-    expect((await call("/pair")).location).toBe("/api/auth/hosted/start");
     expect((await call("/", { local: true })).body).toContain("Fixture workspace");
     expect((await call("/.well-known/openmausbot/environment")).body.capabilities.emailSignIn).toBe(false);
-    for (const path of ["/api/auth/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify"]) {
+    for (const path of ["/api/auth/pair", "/api/pair", "/api/auth/pairing", "/api/auth/email/start", "/api/auth/email/verify"]) {
       expect((await call(path, { method: "POST" })).status).toBe(403);
     }
     expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(401);
     expect((await call("/api/auth/session", { local: true })).body.kind).toBe("loopback");
-    expect((await call("/api/health/hosted")).status).toBe(503);
+    const readiness = await call("/api/health/hosted");
+    expect(readiness.status).toBe(200);
+    expect(readiness.body).toEqual({ ok: true, service: "openmausbot", membershipAuthority: "portal", workspace: "acme", ...HOSTED_CONTRACT_METADATA });
+    expect(readiness.contractVersion).toBe("1");
+    expect(readiness.cookies).toEqual([]);
   });
-  it("accepts a portal session, enforces outages/demotion, and issues only current permissions on reauthentication", async () => {
-    const cookie = await login();
-    expect((await call("/api/auth/session", { cookie })).body).toMatchObject({ scopes: ["admin", "client"], hosted: true });
-    expect((await call("/", { cookie })).body).toContain("Fixture workspace");
-    state("admin", true);
-    expect((await call("/api/auth/session", { cookie })).status).toBe(503);
-    state();
-    expect((await call("/api/auth/session", { cookie })).status).toBe(200);
-    state("member");
-    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
-    const memberCookie = await login();
-    expect((await call("/api/auth/session", { cookie: memberCookie })).body).toMatchObject({ scopes: ["client"], hosted: true });
-    expect((await call("/api/auth/sessions", { cookie: memberCookie })).status).toBe(403);
+  it("uses fresh fixture sessions after an abrupt stop", async () => {
+    const prior = fixtureCookies.admin;
+    expect((await call("/api/auth/session", { cookie: prior })).status).toBe(200);
+    await waitForExit(child, { signal: "SIGKILL" });
+    await restart();
+    expect((await call("/api/auth/session", { cookie: prior })).status).toBe(401);
+    expect(await call("/api/auth/session", { cookie: fixtureCookies.admin })).toMatchObject({
+      status: 200, body: { scopes: ["admin", "client"] },
+    });
   });
   it("keeps an Azure Live call to a workspace admin, in plain words, and never takes a local request for one", async () => {
-    state();
     const botId = await policyBot();
-    const admin = await login();
+    const { admin, member } = fixtureCookies;
     const start = (options: { cookie?: string; local?: boolean }) => call("/api/live/session", { method: "POST", body: { botId, sdp: "v=0\r\n", client: "web" }, ...options });
     const refusal = "Live calls here go through Azure OpenAI, so only an admin or the owner of this server can start one. Ask an admin if you need a call.";
     expect((await call("/api/live/settings", { method: "PATCH", cookie: admin, body: { provider: "azure", azureEndpoint: "https://fixture.openai.azure.com", azureDeployment: "fixture-dep" } })).status).toBe(200);
@@ -191,33 +211,15 @@ describe("hosted bridge in the full server", () => {
       expect(await start({ cookie: admin })).toMatchObject({ status: 409, body: { needsKey: true } });
       // This fixture runs with OMB_LOOPBACK_TRUST=owner, an operator's override: every bot's shell is a local caller too.
       expect(await start({ local: true })).toMatchObject({ status: 403, body: { error: refusal } });
-      state("member");
-      const member = await login();
       expect(await start({ cookie: member })).toMatchObject({ status: 403, body: { error: refusal } });
       const seen = (await call("/api/config", { cookie: member })).body.live;
       expect(seen).toMatchObject({ provider: "azure" });
       expect(seen).not.toHaveProperty("azureEndpoint");
       expect(seen).not.toHaveProperty("azureDeployment");
     } finally {
-      state();
-      expect((await call("/api/live/settings", { method: "PATCH", cookie: await login(), body: { provider: "openai", azureEndpoint: "", azureDeployment: "" } })).status).toBe(200);
+      expect((await call("/api/live/settings", { method: "PATCH", cookie: admin, body: { provider: "openai", azureEndpoint: "", azureDeployment: "" } })).status).toBe(200);
     }
   });
-  it("closes an existing quiet event stream within fifteen seconds of remote revocation", async () => {
-    state();
-    const cookie = await login();
-    const response = await new Promise<IncomingMessage>((resolve, reject) => {
-      const req = request({ hostname: "127.0.0.1", port: PORT, path: "/api/events", headers: { host: HOST, cookie, "x-forwarded-for": "203.0.113.8" } }, resolve);
-      req.on("error", reject); req.end();
-    });
-    expect(response.statusCode).toBe(200); response.resume();
-    const revokedAt = Date.now();
-    const ended = new Promise<void>((resolve) => response.on("end", resolve));
-    state(null);
-    await ended;
-    expect(Date.now() - revokedAt).toBeLessThan(15_000);
-    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
-  }, 17_000);
   it("grants only new local Full tasks under the explicit hosted policy and preserves defaults and existing tasks", async () => {
     state();
     await restart({ OMB_ADMIN_MEMBERSHIP: "portal" });
@@ -225,7 +227,7 @@ describe("hosted bridge in the full server", () => {
     await refuseFullTask();
     await restart({ OMB_ADMIN_MEMBERSHIP: "portal", OMB_SHARED_WORKSPACE_FULL_ACCESS: "1" });
     await policyHealth(true);
-    const cookie = await login();
+    const cookie = fixtureCookies.admin;
     expect((await call("/api/auth/session", { cookie })).body.scopes).toEqual(["admin", "client"]);
     await policyHealth(true, cookie);
     await refuseFullTask(cookie);
@@ -259,47 +261,19 @@ describe("hosted bridge in the full server", () => {
     await restart({ OMB_ENTERPRISE_DIR: join(home, "absent-layer"), OMB_ADMIN_MEMBERSHIP: "portal", OMB_SHARED_WORKSPACE_FULL_ACCESS: "1" });
     await policyHealth(false);
     await refuseFullTask();
-    expect((await call("/api/health/hosted")).status).toBe(503);
+    const readiness = await call("/api/health/hosted");
+    expect(readiness.status).toBe(503);
+    expect(readiness.contractVersion).toBeUndefined();
+    expect(readiness.body).toEqual({ error: "Hosted workspace readiness is unavailable." });
     expect((await call("/api/auth/hosted/start")).status).toBe(503);
+    expect((await call("/api/auth/hosted/callback")).status).toBe(503);
     expect((await call("/")).status).toBe(503);
     expect((await call("/pair")).status).toBe(503);
     expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(503);
+    expect((await call("/api/auth/session", { cookie: fixtureCookies.admin })).status).toBe(503);
     expect((await call("/api/auth/email/verify", { method: "POST" })).status).toBe(403);
     expect((await call("/api/auth/session", { local: true })).body.kind).toBe("loopback");
   }, 25_000);
-  it("uses explicit portal membership without local allow-list synchronization and still revokes quiet streams", async () => {
-    await waitForExit(child, { signal: "SIGTERM" });
-    state();
-    writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({ signIn: { admins: [], members: [] }, instances: INSTANCES }));
-    child = spawn(process.execPath, [join(ROOT, "server/index.ts")], { cwd: ROOT, env: { ...fixtureEnv, OMB_ADMIN_MEMBERSHIP: "portal" }, stdio: ["ignore", "pipe", "pipe"] });
-    child.stderr?.on("data", (chunk) => log += chunk);
-    await expect.poll(async () => {
-      try { return (await call("/api/health", { local: true })).status; } catch { return 0; }
-    }, { timeout: 20_000 }).toBe(200);
-    const readiness = await call("/api/health/hosted");
-    expect(readiness.status).toBe(200);
-    expect(readiness.body).toEqual({ ok: true, service: "openmausbot", membershipAuthority: "portal", workspace: "acme", ...HOSTED_CONTRACT_METADATA });
-    expect(readiness.contractVersion).toBe("1");
-    expect(readiness.cookies).toEqual([]);
-    const cookie = await login();
-    expect((await call("/api/auth/session", { cookie })).body.scopes).toEqual(["admin", "client"]);
-    expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(401);
-    state("admin", true);
-    expect((await call("/api/auth/session", { cookie })).status).toBe(503);
-    state("member");
-    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
-    const memberCookie = await login();
-    expect((await call("/api/auth/session", { cookie: memberCookie })).body.scopes).toEqual(["client"]);
-    const response = await new Promise<IncomingMessage>((resolve, reject) => {
-      const req = request({ hostname: "127.0.0.1", port: PORT, path: "/api/events", headers: { host: HOST, cookie: memberCookie, "x-forwarded-for": "203.0.113.8" } }, resolve);
-      req.on("error", reject); req.end();
-    });
-    expect(response.statusCode).toBe(200); response.resume();
-    const ended = new Promise<void>(resolve => response.on("end", resolve));
-    const revokedAt = Date.now(); state(null); await ended;
-    expect(Date.now() - revokedAt).toBeLessThan(15_000);
-    expect((await call("/api/auth/session", { cookie: memberCookie })).status).toBe(401);
-  }, 30_000);
   it.each([
     ["standalone", { OMB_ADMIN_URL: undefined, OMB_ADMIN_WORKSPACE: undefined, OMB_ADMIN_MEMBERSHIP: undefined }],
     ["incomplete hosted configuration", { OMB_ADMIN_URL: undefined, OMB_ADMIN_MEMBERSHIP: "portal" }],
@@ -328,8 +302,7 @@ describe("hosted bridge in the full server", () => {
     await refuseFullTask();
   }, 25_000);
   it("withdraws hosted readiness the moment the running server's license grace period ends", async () => {
-    // Expired a week ago less eight seconds: inside the 7-day grace, which ends mid-test.
-    state("admin", false, { expiresAt: new Date(Date.now() + 8_000 - 7 * 24 * 60 * 60_000).toISOString() });
+    state("admin", false, { graceRemainingMs: 8_000 });
     await restart({ OMB_ADMIN_MEMBERSHIP: "portal", OMB_SHARED_WORKSPACE_FULL_ACCESS: "1" });
     expect((await call("/api/health/hosted")).status).toBe(200);
     await policyHealth(true);
@@ -350,27 +323,23 @@ describe("hosted bridge in the full server", () => {
     await restart({ OMB_ADMIN_MEMBERSHIP: "portal" });
     const botId = await policyBot();
     const path = `/api/bots/${botId}/slack-management`;
-    const cookie = await login();
-    const management = await call(path, { cookie });
+    const { admin, member } = fixtureCookies;
+    const management = await call(path, { cookie: admin });
     expect(management.status).toBe(200);
     expect(management.body).toEqual({ available: true,
       managementUrl: `https://admin.example.test/slack?workspace=acme&bot=${botId}` });
-    expect((await call("/api/bots/missing-agent/slack-management", { cookie })).status).toBe(404);
+    expect((await call("/api/bots/missing-agent/slack-management", { cookie: admin })).status).toBe(404);
     expect((await call(`/api/bots/${botId}`, { local: true, method: "PATCH", body: { hidden: true } })).status).toBe(200);
-    expect((await call(path, { cookie })).status).toBe(404);
+    expect((await call(path, { cookie: admin })).status).toBe(404);
     expect((await call(`/api/bots/${botId}`, { local: true, method: "PATCH", body: { hidden: false } })).status).toBe(200);
-    state("member");
-    expect((await call(path, { cookie })).status).toBe(401);
-    const memberCookie = await login();
-    expect((await call("/api/auth/session", { cookie: memberCookie })).body.scopes).toEqual(["client"]);
-    const asMember = await call(path, { cookie: memberCookie });
+    expect((await call("/api/auth/session", { cookie: member })).body.scopes).toEqual(["client"]);
+    const asMember = await call(path, { cookie: member });
     expect(asMember.status).toBe(200);
     expect(asMember.body).toEqual(management.body);
-    expect((await call(path, { cookie: memberCookie, method: "POST", body: {} })).status).toBe(403);
+    expect((await call(path, { cookie: member, method: "POST", body: {} })).status).toBe(403);
     const stranger = await call(path);
     expect(stranger.status).toBe(403);
     expect(JSON.stringify(stranger.body)).not.toContain("admin.example.test");
-    state();
     await restart({ OMB_ADMIN_MEMBERSHIP: "local" });
     expect((await call(path, { local: true })).body).toEqual({ available: false });
     policyEvidence.push({ slackManagement: management.body, memberStatus: asMember.status, localMembershipAvailable: false });
@@ -379,7 +348,7 @@ describe("hosted bridge in the full server", () => {
     state();
     await restart({ OMB_ADMIN_MEMBERSHIP: "portal", OMB_SHARED_WORKSPACE_FULL_ACCESS: "1", OMB_LOOPBACK_TRUST: undefined });
     expect(log).toContain("local requests: service trust (hosted workspace)");
-    const admin = await login();
+    const { admin } = fixtureCookies;
     const adminSession = (await call("/api/auth/session", { cookie: admin })).body;
     expect(adminSession.scopes).toEqual(["admin", "client"]);
     const catalog = await call("/api/instances", { cookie: admin });
@@ -434,5 +403,102 @@ describe("hosted bridge in the full server", () => {
     expect(config.budgets.monthlyUsd).toBeUndefined();
     expect(config.membership).toEqual({ authority: "portal", pairingCodes: false, peopleUrl: "https://admin.example.test/people?workspace=acme" });
     policyEvidence.push({ loopbackTrust: "service", refused: refused.map(([method, path]) => `${method} ${path}`), membership: config.membership });
+  }, 30_000);
+});
+
+describe.runIf(HAS_ENTERPRISE_ACCESS)("hosted portal exchange and revocation with the enterprise adapter", () => {
+  let layer: string;
+  beforeAll(async () => {
+    await waitForExit(child, { signal: "SIGTERM" });
+    const sessions = new SessionRegistry({ file: join(home, ".openmausbot", "sessions.json"), portalMembership: true });
+    for (const id of fixtureSessionIds) sessions.revoke(id);
+    sessions.close();
+    state();
+    layer = join(home, "enterprise-portal-layer");
+    // The HTTPS backchannel is injected, never redirected to a real portal.
+    installAccessHook(layer, `
+      import { createWorkspaceAccess as create } from ${JSON.stringify(pathToFileURL(ENTERPRISE_ACCESS).href)};
+      export function createWorkspaceAccess(options) {
+        return create({ ...options, fetchImpl: async (url, init) => {
+          if (new URL(url).origin !== 'https://admin.example.test') throw new Error('unexpected outbound origin');
+          const current = JSON.parse(readFileSync(${JSON.stringify(stateFile)}, 'utf8'));
+          if (current.outage) throw new Error('offline fixture');
+          const body = JSON.parse(init.body);
+          if (body.workspace !== 'acme' || !current.role) return Response.json({}, { status: 401 });
+          return Response.json({ email: ${JSON.stringify(EMAIL)}, role: current.role, grant: 'g'.repeat(43) });
+        } });
+      }
+    `);
+    await restart({ OMB_ENTERPRISE_DIR: layer, OMB_ADMIN_MEMBERSHIP: undefined }, false);
+  });
+
+  it("redirects hosted navigation to portal sign-in and keeps local navigation available", async () => {
+    expect((await call("/")).location).toBe("/api/auth/hosted/start");
+    expect((await call("/pair")).location).toBe("/api/auth/hosted/start");
+    expect((await call("/", { local: true })).body).toContain("Fixture workspace");
+    expect((await call("/api/health/hosted")).status).toBe(503);
+  });
+
+  it("accepts a portal session, enforces outages/demotion, and issues only current permissions on reauthentication", async () => {
+    const cookie = await login();
+    expect((await call("/api/auth/session", { cookie })).body).toMatchObject({ scopes: ["admin", "client"], hosted: true });
+    expect((await call("/", { cookie })).body).toContain("Fixture workspace");
+    state("admin", true);
+    expect((await call("/api/auth/session", { cookie })).status).toBe(503);
+    state();
+    expect((await call("/api/auth/session", { cookie })).status).toBe(200);
+    state("member");
+    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
+    const memberCookie = await login();
+    expect((await call("/api/auth/session", { cookie: memberCookie })).body).toMatchObject({ scopes: ["client"], hosted: true });
+    expect((await call("/api/auth/sessions", { cookie: memberCookie })).status).toBe(403);
+  });
+  it("closes an existing quiet event stream within fifteen seconds of remote revocation", async () => {
+    state();
+    const cookie = await login();
+    const response = await new Promise<IncomingMessage>((resolve, reject) => {
+      const req = request({ hostname: "127.0.0.1", port: PORT, path: "/api/events", headers: { host: HOST, cookie, "x-forwarded-for": "203.0.113.8" } }, resolve);
+      req.on("error", reject); req.end();
+    });
+    expect(response.statusCode).toBe(200); response.resume();
+    const revokedAt = Date.now();
+    const ended = new Promise<void>((resolve) => response.on("end", resolve));
+    state(null);
+    await ended;
+    expect(Date.now() - revokedAt).toBeLessThan(15_000);
+    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
+  }, 17_000);
+  it("uses explicit portal membership without local allow-list synchronization and still revokes quiet streams", async () => {
+    await waitForExit(child, { signal: "SIGTERM" });
+    state();
+    writeFileSync(join(home, ".openmausbot", "config.json"), JSON.stringify({ signIn: { admins: [], members: [] }, instances: INSTANCES }));
+    await restart({ OMB_ENTERPRISE_DIR: layer }, false);
+    const readiness = await call("/api/health/hosted");
+    expect(readiness.status).toBe(200);
+    expect(readiness.body).toEqual({ ok: true, service: "openmausbot", membershipAuthority: "portal", workspace: "acme", ...HOSTED_CONTRACT_METADATA });
+    expect(readiness.contractVersion).toBe("1");
+    expect(readiness.cookies).toEqual([]);
+    const cookie = await login();
+    expect((await call("/api/auth/session", { cookie })).body.scopes).toEqual(["admin", "client"]);
+    expect((await call("/api/auth/session", { token: pairedToken })).status).toBe(401);
+    const managementPath = `/api/bots/${await policyBot()}/slack-management`;
+    expect((await call(managementPath, { cookie })).status).toBe(200);
+    state("admin", true);
+    expect((await call("/api/auth/session", { cookie })).status).toBe(503);
+    state("member");
+    expect((await call(managementPath, { cookie })).status).toBe(401);
+    expect((await call("/api/auth/session", { cookie })).status).toBe(401);
+    const memberCookie = await login();
+    expect((await call("/api/auth/session", { cookie: memberCookie })).body.scopes).toEqual(["client"]);
+    expect((await call(managementPath, { cookie: memberCookie })).status).toBe(200);
+    const response = await new Promise<IncomingMessage>((resolve, reject) => {
+      const req = request({ hostname: "127.0.0.1", port: PORT, path: "/api/events", headers: { host: HOST, cookie: memberCookie, "x-forwarded-for": "203.0.113.8" } }, resolve);
+      req.on("error", reject); req.end();
+    });
+    expect(response.statusCode).toBe(200); response.resume();
+    const ended = new Promise<void>(resolve => response.on("end", resolve));
+    const revokedAt = Date.now(); state(null); await ended;
+    expect(Date.now() - revokedAt).toBeLessThan(15_000);
+    expect((await call("/api/auth/session", { cookie: memberCookie })).status).toBe(401);
   }, 30_000);
 });

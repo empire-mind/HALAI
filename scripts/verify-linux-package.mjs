@@ -15,6 +15,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { HALAI_PRODUCT } from "../shared/halai-product.ts";
 import { LICENSE_FILES } from "./cua-linux-release.mjs";
 import {
   CLOUDFLARED_ASSETS,
@@ -71,9 +72,9 @@ function requirePackageType(resources, label, expected) {
 function requireUpdaterTarget(resources, label) {
   const updateFile = path.join(resources, "app-update.yml");
   requireFile(updateFile);
-  const update = readFileSync(updateFile, "utf8");
-  if (!/^owner: milind-soni$/m.test(update) || !/^repo: OpenMausBot$/m.test(update)) {
-    fail(`${label} app-update.yml does not point at milind-soni/OpenMausBot`);
+  const update = readFileSync(updateFile, "utf8").split(/\r?\n/);
+  if (!update.includes("provider: github") || !update.includes(`owner: ${HALAI_PRODUCT.owner}`) || !update.includes(`repo: ${HALAI_PRODUCT.repo}`)) {
+    fail(`${label} app-update.yml does not point at ${HALAI_PRODUCT.owner}/${HALAI_PRODUCT.repo}`);
   }
 }
 
@@ -468,9 +469,12 @@ try {
   );
   requireFile(desktopFile);
   requireFile(scalableIcon);
+  if (sha256(scalableIcon) !== sha256(path.join(root, "public", "app-icon.svg"))) {
+    fail("DEB scalable icon differs from the HALAI mark");
+  }
   const desktop = readFileSync(desktopFile, "utf8");
   for (const expected of [
-    "Name=OpenMausBot",
+    `Name=${HALAI_PRODUCT.name}`,
     "Exec=/opt/OpenMausBot/openmausbot %U",
     "Icon=openmausbot",
     "StartupWMClass=com.openmausbot.app",

@@ -8,8 +8,8 @@
   --omb-ink: #0a0a0b;
   --omb-muted: #5f6570;
   --omb-line: #e5e7ea;
-  --omb-accent: #009957;
-  --omb-accent-soft: #eaf8f1;
+  --omb-accent: #344ac6;
+  --omb-accent-soft: #e8edfa;
 
   --color-fd-background: var(--omb-bg);
   --color-fd-foreground: var(--omb-ink);
@@ -23,7 +23,7 @@
   --color-fd-secondary: var(--omb-raised);
   --color-fd-secondary-foreground: var(--omb-ink);
   --color-fd-accent: var(--omb-accent-soft);
-  --color-fd-accent-foreground: #006b3d;
+  --color-fd-accent-foreground: #293fac;
 }
 
 .dark {
@@ -32,11 +32,11 @@
   --omb-ink: #f4f4f5;
   --omb-muted: #9a9aa4;
   --omb-line: #232327;
-  --omb-accent: #3fae6e;
-  --omb-accent-soft: #10271a;
+  --omb-accent: #a9b6ff;
+  --omb-accent-soft: #2e3b5c;
 
-  --color-fd-primary-foreground: #07130c;
-  --color-fd-accent-foreground: #7bd69e;
+  --color-fd-primary-foreground: #192245;
+  --color-fd-accent-foreground: #bac6ff;
 }
 
 html {
@@ -54,6 +54,7 @@ body {
     radial-gradient(circle at 75% -20%, color-mix(in srgb, var(--omb-accent) 8%, transparent), transparent 32rem),
     var(--omb-bg);
   color: var(--omb-ink);
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.012em;
 }
 

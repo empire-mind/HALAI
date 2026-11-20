@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DesktopWorkspaceSwitcher } from "../components/DesktopWorkspaceSwitcher";
-import { productName } from "../lib/brand";
+import { brand, productName } from "../lib/brand";
 
 import {
   defaultDeviceLabel,
@@ -19,10 +19,16 @@ import { pairedDestination } from "../lib/phone-pairing";
 import { t } from "../lib/i18n";
 import { formatPairingCode, PAIRING_INPUT_PROBLEM_KEY, readPairingInput } from "../../shared/pairing-code";
 import { isPrivateHost } from "../../shared/private-host";
+import { HALAI_PRODUCT } from "../../shared/halai-product";
 
-const input = "mt-1 w-full rounded-md border border-hairline/40 bg-inset px-3 py-2 text-[14px] text-ink outline-none focus:border-accent-border";
-const button = "mt-5 w-full rounded-md bg-accent px-4 py-2 text-[14px] font-medium text-accent-ink disabled:opacity-50";
+const input = "mt-1 min-h-11 w-full rounded-lg border border-composer-ring bg-inset px-3 py-2 text-[14px] text-ink aria-invalid:border-danger";
+const button = "ui-button ui-button-lg ui-button-primary mt-5 min-h-11 w-full disabled:opacity-50";
 const fieldLabel = "mt-4 block text-[12px] font-medium text-ink-secondary";
+
+function continuePairing(): void {
+  const destination = pairedDestination(location.search, location.origin);
+  if (destination.origin === location.origin) location.replace(destination.href);
+}
 
 /** Only the desktop app pairs from a link at once; a browser asks, so a sent link cannot sign it in unseen. */
 export function pairsAutomatically(initialCode: string | null, desktop = typeof window !== "undefined" && Boolean(window.ogb?.workspaces)): boolean {
@@ -95,19 +101,24 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   const [otp, setOtp] = useState("");
   const [sent, setSent] = useState(false);
   const [opening, setOpening] = useState(() => pairsAutomatically(initialCode));
+  const verificationCode = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!opening || !initialCode) return;
     let active = true;
     void pairWithCode({ code: initialCode, label, attemptId }).then((result) => {
       if (!active) return;
-      if (result.ok) { location.replace(pairedDestination(location.search)); return; }
+      if (result.ok) { continuePairing(); return; }
       setOpening(false);
       setError(result.error);
     });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (mode === "email" && sent) verificationCode.current?.focus();
+  }, [mode, sent]);
 
   useEffect(() => {
     void fetch("/.well-known/openmausbot/environment")
@@ -126,6 +137,8 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   const cloudHome = environment?.capabilities.cloudHome === true;
   const ownServer = !cloudHome && environment?.capabilities.cloudTeam !== true;
   const problem = codeProblem(code);
+  const codeFromLink = Boolean(initialCode && code === initialCode);
+  const codeHint = [codeFromLink ? "pair-code-from-link" : null, problem || error ? "pair-code-error" : null].filter(Boolean).join(" ") || undefined;
   const where = typeof location !== "undefined" && typeof location.protocol === "string" ? location : null;
 
   async function submitCode(e: React.FormEvent) {
@@ -135,7 +148,7 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
     const result = await pairWithCode({ code, label, attemptId });
     setBusy(false);
     if (result.ok) {
-      location.replace(pairedDestination(location.search));
+      continuePairing();
       return;
     }
     setError(result.error);
@@ -152,7 +165,7 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
       return;
     }
     if (sent) {
-      location.replace(pairedDestination(location.search));
+      continuePairing();
       return;
     }
     setSent(true);
@@ -164,12 +177,13 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-app px-6 text-ink">
-      <div className="absolute left-3 top-12 max-w-[280px]"><DesktopWorkspaceSwitcher /></div>
-      <div className="w-full max-w-[420px]">
+    <main className="flex h-dvh flex-col overflow-y-auto bg-app px-4 py-6 text-ink sm:px-6">
+      <div className="max-w-[280px] empty:hidden"><DesktopWorkspaceSwitcher /></div>
+      <div className="mx-auto my-auto w-full max-w-[420px] rounded-xl border border-hairline bg-panel px-5 py-6 sm:px-7">
+        <img src={brand().logo ?? HALAI_PRODUCT.mark} alt="" height={48} width={48} className="mb-4 size-12 object-contain" />
         {where && unencryptedPublic(where) ? <p role="alert" className="mb-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-[13px] text-warning">{t("pair.notEncrypted")}</p> : null}
         {opening ? (
-          <p role="status" className="text-[20px] font-semibold">{cloudHome ? t("pair.openingCloud") : t("pair.connectingTo", { name: environment?.label ?? t("pair.thisOpenMausBot") })}</p>
+          <p role="status" className="text-[20px] font-semibold">{cloudHome ? t("pair.openingCloud") : t("pair.connectingTo", { name: environment?.label ?? t("pair.thisOpenMausBot", { app: productName() }) })}</p>
         ) : <>
         <h1 className="text-[20px] font-semibold">{pairTitle(environment, mode)}</h1>
         <p className="mt-1.5 text-[14px] leading-relaxed text-ink-secondary">
@@ -203,11 +217,13 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
                 setEmail(e.target.value);
                 setSent(false);
                 setOtp("");
+                setError(null);
               }}
               autoComplete="email"
               inputMode="email"
               spellCheck={false}
               className={input}
+              aria-describedby={!sent && error ? "pair-email-error" : undefined}
             />
             {sent ? (
               <>
@@ -216,12 +232,15 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
                 </label>
                 <input
                   id="signin-code"
+                  ref={verificationCode}
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
+                  onChange={(e) => { setOtp(e.target.value); setError(null); }}
                   placeholder="12345678"
                   autoComplete="one-time-code"
                   inputMode="numeric"
                   spellCheck={false}
+                  aria-invalid={Boolean(error)}
+                  aria-describedby={error ? "pair-email-error" : undefined}
                   className={`${input} font-mono text-[15px] tracking-[0.12em]`}
                 />
                 <label className={fieldLabel} htmlFor="signin-label">
@@ -230,12 +249,12 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
                 <input id="signin-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} className={input} />
               </>
             ) : null}
-            {error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
+            {error ? <p id="pair-email-error" role="alert" className="mt-3 break-words text-[13px] text-danger">{error}</p> : null}
             <button type="submit" disabled={busy || !email.includes("@") || (sent && otp.replace(/\D/g, "").length < 8)} className={button}>
               {t(busy ? (sent ? "pair.signingIn" : "pair.sending") : sent ? "pair.signIn" : "cloudBuy.signIn.send")}
             </button>
             {sent ? (
-              <button type="button" onClick={() => setSent(false)} className="mt-3 w-full text-[13px] text-ink-secondary underline">
+              <button type="button" onClick={() => { setSent(false); setOtp(""); setError(null); }} className="mt-3 w-full text-[13px] text-ink-secondary underline">
                 {t("pair.resend")}
               </button>
             ) : null}
@@ -254,20 +273,22 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
               onChange={(e) => {
                 setCode(e.target.value);
                 setAttemptId(newAttemptId());
+                setError(null);
               }}
               placeholder="XXXX-XXXX-XXXX"
-              aria-describedby={initialCode && code === initialCode ? "pair-code-from-link" : undefined}
+              aria-invalid={Boolean(problem || error)}
+              aria-describedby={codeHint}
               autoComplete="one-time-code"
               autoCapitalize="characters"
               spellCheck={false}
               className={`${input} font-mono text-[15px] tracking-[0.12em]`}
             />
-            {initialCode && code === initialCode ? <p id="pair-code-from-link" className="mt-1 text-[12px] text-ink-secondary">{t("pair.fromLink")}</p> : null}
+            {codeFromLink ? <p id="pair-code-from-link" className="mt-1 text-[12px] text-ink-secondary">{t("pair.fromLink")}</p> : null}
             <label className={fieldLabel} htmlFor="pair-label">
               {t("pair.deviceLabel")}
             </label>
             <input id="pair-label" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={80} className={input} />
-            {problem ? <p role="alert" className="mt-3 text-[13px] text-danger">{problem}</p> : error ? <p className="mt-3 text-[13px] text-danger">{error}</p> : null}
+            {problem || error ? <p id="pair-code-error" role="alert" className="mt-3 break-words text-[13px] text-danger">{problem ?? error}</p> : null}
             <button type="submit" disabled={busy || !codeReady(code)} className={button}>
               {t(busy ? "pair.connecting" : "pair.connect")}
             </button>
@@ -279,7 +300,7 @@ export function PairPage({ initialCode, initialEmail = null, reason }: { initial
             ) : null}
             {ownServer ? (
               <p className="mt-3 text-[13px] text-ink-secondary">
-                {t("pair.noCode")} <code className="select-all rounded bg-inset px-1.5 py-0.5 text-[12px] text-ink">npx openmausbot pair</code>
+                {t("pair.noCode")} <code className="select-all rounded bg-inset px-1.5 py-0.5 text-[12px] text-ink">openmausbot pair</code>
               </p>
             ) : null}
             {emailOffered ? (

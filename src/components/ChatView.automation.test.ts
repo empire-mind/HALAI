@@ -10,7 +10,7 @@ vi.mock("./DesktopCapabilities", async (importOriginal) => ({
   useDesktopCapabilities: () => ({ capabilities: { dictation: { available: false }, host: { packaged: true, platform: "other" }, localComputer: { available: false } }, ready: true }),
 }));
 vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
-vi.mock("@/lib/cloud-guest", () => ({ useCanWriteIn: () => true, useReactor: () => "user" }));
+vi.mock("@/lib/cloud-guest", () => ({ useCanWriteIn: () => true, useReactor: () => "user", useCloudGuest: () => false }));
 vi.mock("./ModelPicker", () => ({ ModelPicker: () => null }));
 
 const { ChatView } = await import("./ChatView");
@@ -97,7 +97,7 @@ describe("an automation's line in the chat", () => {
       flushSync(() => tools.click());
       expect(tools.getAttribute("aria-checked")).toBe("false");
       expect(document.querySelector('[data-mid="resolved-tool"]')).toBeNull();
-      expect(document.querySelector('[data-mid="pending-tool"]')).not.toBeNull();
+      expect(document.querySelector('[data-mid="pending-tool"] [data-approval-row="pending"]')).not.toBeNull();
       expect(document.querySelector('[data-mid="approval"]')?.textContent).toContain("Please confirm.");
       flushSync(() => tools.click());
 

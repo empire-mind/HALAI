@@ -133,15 +133,24 @@ export function takePairOnOpen(): boolean {
 }
 
 /** Where a page signed in by the app goes next: the phone pairing, back to a path of this same server, or a linked thread. */
-export function pairedDestination(search: string): string {
+export function pairedDestination(search: string, origin: string): URL {
   const params = new URLSearchParams(search);
-  if (params.get("desktop-settings") === "phone") return params.get("pair") === "open" ? "/?desktop-settings=phone&pair=open" : "/?desktop-settings=phone";
+  const home = new URL("/", origin);
+  if (params.get("desktop-settings") === "phone") {
+    home.searchParams.set("desktop-settings", "phone");
+    if (params.get("pair") === "open") home.searchParams.set("pair", "open");
+    return home;
+  }
   const next = params.get("next");
-  if (next && /^\/(?!\/)/.test(next) && !next.startsWith("/pair") && !/[\\\s]/.test(next)) return next;
+  if (next && /^\/(?!\/)/.test(next) && !/[\\\s]/.test(next)) {
+    const destination = new URL(next, home);
+    if (destination.origin === home.origin && !destination.pathname.startsWith("/pair")) return destination;
+  }
   const thread = params.get("thread");
-  if (thread === null) return "/";
-  const keep = new URLSearchParams({ thread });
-  const bot = params.get("bot");
-  if (bot !== null) keep.set("bot", bot);
-  return `/?${keep}`;
+  if (thread !== null) {
+    home.searchParams.set("thread", thread);
+    const bot = params.get("bot");
+    if (bot !== null) home.searchParams.set("bot", bot);
+  }
+  return home;
 }

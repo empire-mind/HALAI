@@ -275,7 +275,7 @@ export const WINDOWS_PATH = new RegExp([
   String.raw`\.(?:ps1|psm1|psd1|cmd|bat|exe|msi|nsh|nsi)$`,
   String.raw`^(?:electron|build|third_party)/`,
   String.raw`^(?:electron-builder\.yml|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|\.npmrc|\.gitattributes|vite\.config\.ts)$`,
-  String.raw`^\.github/workflows/ci\.yml$|^scripts/ci-scope\.mjs$`,
+  String.raw`^\.github/(?:workflows/ci\.yml$|actions/setup-pnpm/)|^scripts/ci-scope\.mjs$`,
   String.raw`^scripts/testing/(?:host-e2e\.ts|duration-sequencer\.ts|vitest-shard-weights\.json|ci-retry-[^/]+)$|^server/testing/host-timeout\.ts$`,
   String.raw`^scripts/(?:build|bundle|prepare|package|smoke|after-pack|stage)[^/]*$`,
 ].join("|"), "i");

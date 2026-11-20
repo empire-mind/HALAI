@@ -11,10 +11,11 @@ import { HARNESS_CALL_BUDGET_MS, HARNESS_PROXY_TIMEOUT_MS } from "./harness-budg
 import { RelayPorts } from "./browser-relay.ts";
 import { BrowserSteps, type StepCall, type StepContext } from "./browser-steps.ts";
 import { FakeRelay } from "./testing/fake-relay.ts";
+import { hostTimeout } from "./testing/host-timeout.ts";
 
 const runtimes: BrowserRuntime[] = [];
 function runtime(options: ConstructorParameters<typeof BrowserRuntime>[0] = {}) {
-  const value = new BrowserRuntime({ requestTimeoutMs: 1_000, takeoverTimeoutMs: 100, idleMs: 1_000, ...options });
+  const value = new BrowserRuntime({ requestTimeoutMs: hostTimeout(1_000), takeoverTimeoutMs: 100, idleMs: 1_000, ...options });
   runtimes.push(value);
   return value;
 }

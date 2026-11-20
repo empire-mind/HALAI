@@ -111,16 +111,20 @@ describe("importing a whole team", () => {
     expect(app.events.filter((kind) => kind === "bot")).toHaveLength(3);
   });
 
-  it("brings a new install's chrome MausBot back in chrome from its own export", async () => {
+  it.each([
+    { label: "a fresh install's HALAI Assistant", name: "HALAI Assistant", legacy: false },
+    { label: "a legacy MausBot", name: "MausBot", legacy: true },
+  ])("brings $label back in chrome from its own export", async ({ name, legacy }) => {
     const app = await installation();
-    app.store.seedIfEmpty();
+    if (legacy) app.store.createBot({ name, color: "chrome" }, { seedMessages: false });
+    else app.store.seedIfEmpty();
     const { createBotPackageExport } = await import("./package-export.ts");
     const exported = createBotPackageExport({ name: "Mine", groups: [], routines: [], bots: app.store.bots });
     const document: PackageDocument = app.parsePackageDocument(JSON.parse(JSON.stringify(exported)));
-    expect(document.package.agents.map((agent) => [agent.name, agent.appearance?.color])).toEqual([["MausBot", "chrome"]]);
+    expect(document.package.agents.map((agent) => [agent.name, agent.appearance?.color])).toEqual([[name, "chrome"]]);
     const result = app.importer.importPackageDocument(document, { trust: "file", mode: "add" }, app.deps);
     if (result.alreadyAdded) throw new Error("unexpected");
-    expect(result.bots.map((bot) => app.store.bot(bot.id)?.color)).toEqual(["chrome"]);
+    expect(result.bots.map((bot) => app.store.bot(bot.id))).toMatchObject([{ name: `${name} 2`, color: "chrome" }]);
   });
 
   it("keeps a routine's run on startup, still arriving paused", async () => {

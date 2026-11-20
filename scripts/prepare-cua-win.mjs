@@ -33,19 +33,30 @@ if (expectedVersion !== release.version) {
 }
 
 async function binaryVersion(candidate) {
-  if (!candidate || !existsSync(candidate)) return null;
+  if (!existsSync(candidate)) return { version: null, reason: "executable missing" };
   try {
-    const { stdout } = await run(candidate, ["--version"], { timeout: 5000, windowsHide: true });
-    return stdout.match(/cua-driver\s+([\d.]+)/)?.[1] ?? null;
-  } catch {
-    return null;
+    const { stdout, stderr } = await run(candidate, ["--version"], {
+      timeout: 5000,
+      windowsHide: true,
+      env: { ...process.env, CUA_DRIVER_RS_TELEMETRY_ENABLED: "0" },
+    });
+    const version = `${stdout}\n${stderr}`.match(/^cua-driver[ \t]+(\d+\.\d+\.\d+)(?=[ \t\r\n]|$)/m)?.[1];
+    return version ? { version, reason: `reported ${version}` } : { version: null, reason: "version output missing" };
+  } catch (error) {
+    const reason = error.killed ? "version probe timed out" : `version probe failed (${error.code ?? error.name})`;
+    return { version: null, reason };
   }
+}
+
+async function requireBinaryVersion(candidate, description) {
+  const { version, reason } = await binaryVersion(candidate);
+  if (version !== expectedVersion) throw new Error(`${description} must report CUA Driver ${expectedVersion}: ${reason}`);
 }
 
 async function officialBinary() {
   const cache = join(root, "node_modules", ".cache", "openmausbot", `cua-driver-${release.version}-win`);
   const cachedBinary = join(cache, "cua-driver.exe");
-  if ((await binaryVersion(cachedBinary)) === expectedVersion) return cachedBinary;
+  if ((await binaryVersion(cachedBinary)).version === expectedVersion) return cachedBinary;
 
   await rm(cache, { recursive: true, force: true });
   await mkdir(cache, { recursive: true });
@@ -63,26 +74,22 @@ async function officialBinary() {
   }
   const archive = join(cache, release.file);
   await writeFile(archive, bytes);
-  await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-    "Expand-Archive -LiteralPath $env:OMB_CUA_ARCHIVE -DestinationPath $env:OMB_CUA_EXTRACT"], {
+  // Windows PowerShell 5.1 inherits Core module paths from a pwsh build.
+  const extract = [
+    "$env:PSModulePath = [System.IO.Path]::Combine($PSHOME, 'Modules')",
+    "Expand-Archive -LiteralPath $env:OMB_CUA_ARCHIVE -DestinationPath $env:OMB_CUA_EXTRACT -ErrorAction Stop",
+  ].join("\n");
+  await run("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", extract], {
     env: { ...process.env, OMB_CUA_ARCHIVE: archive, OMB_CUA_EXTRACT: cache },
     timeout: 60_000,
     windowsHide: true,
   });
-  if ((await binaryVersion(cachedBinary)) !== expectedVersion) {
-    throw new Error(`downloaded CUA Driver does not report version ${expectedVersion}`);
-  }
+  await requireBinaryVersion(cachedBinary, "Downloaded executable");
   return cachedBinary;
 }
 
 let binary;
 if (process.env.CUA_DRIVER_PATH) {
-  const suppliedVersion = await binaryVersion(process.env.CUA_DRIVER_PATH);
-  if (suppliedVersion !== expectedVersion) {
-    throw new Error(
-      `CUA_DRIVER_PATH must point to cua-driver ${expectedVersion}; found ${suppliedVersion ?? "an unreadable binary"}`,
-    );
-  }
   binary = process.env.CUA_DRIVER_PATH;
 } else {
   const nativePackage = join(dependencyRoot, "@trycua", "cua-driver-win32-x64-msvc");
@@ -99,9 +106,7 @@ if (process.env.CUA_DRIVER_PATH) {
   }
 }
 
-if ((await binaryVersion(binary)) !== expectedVersion) {
-  throw new Error(`CUA executable must match SDK ${expectedVersion}`);
-}
+await requireBinaryVersion(binary, process.env.CUA_DRIVER_PATH ? "CUA_DRIVER_PATH" : "CUA executable");
 const details = await stat(binary);
 if (!details.isFile()) {
   throw new Error(`cua-driver is not a file: ${binary}`);

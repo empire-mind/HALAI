@@ -1,0 +1,1 @@
+ghcr.io/milind-soni/openmausbot@sha256:7fe048da80c82e77b7615567200209457aee3b093b200cc1cd5833bb723941ce

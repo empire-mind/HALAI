@@ -16,6 +16,11 @@ describe("a fixture driven from a real browser", () => {
   });
 });
 
+it("starts fixture servers with the bundled model manifest", () => {
+  expect(childEnv({}).OMB_DISABLE_MODEL_MANIFEST_FETCH).toBe("1");
+  expect(childEnv({ OMB_DISABLE_MODEL_MANIFEST_FETCH: "0" }).OMB_DISABLE_MODEL_MANIFEST_FETCH).toBe("1");
+});
+
 describe("the fixture's fake engine knobs", () => {
   it("lets the Claude fake's knobs and the Codex fake's background-call knobs cross, and nothing else", () => {
     const env = childEnv({

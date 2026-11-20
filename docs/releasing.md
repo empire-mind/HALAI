@@ -1,4 +1,4 @@
-# Releasing
+# Releasing HALAI
 
 For a normal release, run **Actions → Prepare next release → Run workflow** and
 choose a patch, minor, or custom version. It opens a tiny version-bump PR;
@@ -10,17 +10,16 @@ reruns and recovery. It
 builds macOS (arm64 + x64, signed, notarized, stapled), Windows, and Ubuntu
 from a single pinned commit, verifies every artifact the way a user would
 receive it, and assembles the canonical draft in
-[OpenMausBot releases](https://github.com/milind-soni/OpenMausBot/releases).
-The exact same assets are also staged in the public legacy releases repo so
-installed builds from 0.1.46 and earlier can update across the repository
-migration.
+[EmpireMind/HALAI releases](https://github.com/empire-mind/HALAI/releases).
+Each desktop build verifies that its packaged updater manifest uses that
+repository over HTTPS. The release workflow then checks the SHA-256 digest of
+every uploaded asset against the staged file.
 
-Tick **publish** to publish and verify the canonical release first, then make
-the identical legacy updater bridge visible. Leave it unticked to review the
-canonical draft; when you publish that draft in GitHub's UI, the **Sync
-published release** workflow
-verifies and publishes its legacy mirror automatically. Never publish only the
-legacy draft.
+Leave **publish** unticked to review the draft. Once authorised for release,
+publish the canonical draft in GitHub's UI or use the workflow's **publish**
+input. The latter dispatches the existing Docker and connector workflows.
+HALAI's public npm package requires its own package ownership and trusted
+publisher setup.
 
 The release commit must have passed CI on every platform: the **CI passed on
 the release commit** job waits (while the platforms build) for a ci.yml run
@@ -41,8 +40,7 @@ A release is rejected if any installer, stable download
 name, updater feed, blockmap, size, or digest is absent or inconsistent.
 
 GitHub generates the release body from pull requests since the previous
-canonical tag. The docs changelog combines published canonical releases with
-the legacy archive into one complete history and caches it for five minutes.
+canonical tag. The HALAI docs changelog reads the first-party release history.
 Configure the optional Vercel hook below to rebuild the docs immediately after
 publication; otherwise the live cache or the next normal docs deployment
 refreshes it.
@@ -122,23 +120,13 @@ held to the same steps and the same promises:
 this; `scripts/testing/deploy-update.test.ts` holds the script to it. A change
 to one side's steps belongs in the other too.
 
-## Updater migration invariant
+## Desktop updater and install identity
 
-`app-update.yml` is baked into every packaged desktop app. Builds through
-0.1.46 point to `milind-soni/openmausbot-releases`; newer builds point to
-`milind-soni/OpenMausBot`. For that reason:
-
-1. Every new release is published byte-for-byte to both repositories during
-   the bridge period.
-2. `openmausbot-releases` must stay public. Do not delete its final bridge
-   release, feeds, or assets.
-3. README and docs downloads point at the canonical repo, while the legacy
-   mirror exists only for installed updater clients and historical releases.
-
-The npm package is published separately and its versioned `.tgz` is attached
-only to the canonical release. It is not a desktop updater artifact; the
-mirror checks permit that one extra file while still verifying the complete,
-byte-identical desktop asset set.
+New HALAI desktop packages contain `app-update.yml` for the public
+`empire-mind/HALAI` feed. Upstream OpenMausBot packages already on a device
+follow their packaged updater feed. Qualify an in-place upgrade or a
+side-by-side install with the approved signing identity and package IDs
+before commissioning an existing device.
 
 ## Why the gates exist
 
@@ -161,48 +149,24 @@ must fail the build, not ship an installer that downloads them on first use.
 
 ## One-time setup: release secrets
 
-Set these in **OpenMausBot → Settings → Secrets and variables → Actions**.
+Set authorised HALAI signing references in **EmpireMind/HALAI → Settings →
+Secrets and variables → Actions**.
 
-The **Prepare next release** workflow also needs
-**Settings → Actions → General → Workflow permissions → Allow GitHub Actions
-to create and approve pull requests** enabled. The workflow only creates the
-version PR; it never approves or merges it.
+**Prepare next release** uses the repository's approved Actions permissions
+to open a version PR for normal review and merge.
 
 ### 1. `MAC_CERT_P12_BASE64` + `MAC_CERT_PASSWORD`
 
-The Developer ID Application certificate, exported from the Mac that
-currently signs releases:
-
-```sh
-# Keychain Access → My Certificates → "Developer ID Application: Milind Soni
-# (993D98NH4J)" → right-click → Export… → .p12 with a strong password, then:
-base64 -i DeveloperID.p12 | pbcopy   # → MAC_CERT_P12_BASE64
-# the export password             → MAC_CERT_PASSWORD
-```
+Supply the Developer ID Application certificate approved for HALAI through
+the existing signing secret references.
 
 ### 2. `APPLE_API_KEY_P8_BASE64` + `APPLE_API_KEY_ID` + `APPLE_API_ISSUER_ID`
 
-An App Store Connect API key for notarization (better than an app-specific
-password for CI — revocable, scoped, no 2FA dance):
+Use the approved HALAI App Store Connect notarisation key references.
 
-1. [App Store Connect → Users and Access → Integrations → App Store Connect API](https://appstoreconnect.apple.com/access/integrations/api)
-2. Generate a **Team Key** with the **Developer** role
-3. Download the `.p8` (one chance only), note the Key ID and Issuer ID
+The canonical release uses the workflow's scoped `GITHUB_TOKEN`.
 
-```sh
-base64 -i AuthKey_XXXXXXXX.p8 | pbcopy   # → APPLE_API_KEY_P8_BASE64
-```
-
-### 3. `RELEASES_PAT`
-
-A fine-grained personal access token that lets the workflow write to the
-legacy updater mirror: **GitHub → Settings → Developer settings →
-Fine-grained tokens** → repository access: only `openmausbot-releases` →
-permissions: **Contents: Read and write**. Set a long expiry and a calendar
-reminder. The canonical release uses the workflow's scoped `GITHUB_TOKEN` and
-does not need a PAT.
-
-### 4. Optional `DOCS_DEPLOY_HOOK_URL`
+### 3. Optional `DOCS_DEPLOY_HOOK_URL`
 
 In Vercel, open the docs project and create a **Deploy Hook** for its production
 branch. Store that private URL as the `DOCS_DEPLOY_HOOK_URL` repository secret.
@@ -215,7 +179,6 @@ The hand-cut path still works when Actions is down or a release needs
 surgery: `pnpm package:mac`, gate with `codesign --verify --deep --strict`,
 notarize with the local keychain profile (`xcrun notarytool submit …
 --keychain-profile AC_PASSWORD`), staple, re-zip, regenerate blockmaps and
-`node scripts/regenerate-mac-feed.mjs`, upload the identical complete asset set
-to both repositories, publish and verify the canonical release before the
-legacy mirror, and always verify the published bytes against the published feed
-by downloading them back.
+`node scripts/regenerate-mac-feed.mjs`, verify the updater manifest, and upload
+the complete asset set to the HALAI draft. After authorised publication,
+download the artefacts and compare their bytes with the published feeds.

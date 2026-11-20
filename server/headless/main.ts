@@ -11,6 +11,7 @@ import { Output, processIo, type HeadlessIo } from "./output.ts";
 import { runVerb, waitVerb } from "./run.ts";
 import { teamApplyVerb, teamExportVerb } from "./team-apply.ts";
 import { tokenVerb } from "./token.ts";
+import { botDetails, listComputers, listThreads, workspaceStatus } from "./workspace.ts";
 
 const T = "TARGET is a bot or room by name or id, or --bot ID, --channel ID, --thread ID; --task ID picks one of its conversations.";
 
@@ -29,7 +30,13 @@ openmausbot doctor --data [--fix] [--data-dir DIR]
   --fix applies the repairs that cannot lose data, only while no server uses the folder; whatever a repair changes is
   copied to DIR/doctor-backups/<time>/ first. Anything else is reported with what to do.
   Exit 0 fine (after --fix: fine now), 8 a problem is left.`,
-  bots: "openmausbot bots\n  Your bots and what each is doing.",
+  status: "openmausbot status --url URL\n  Read workspace status and what each bot is doing. Bare status checks the local installation.",
+  bots: "openmausbot bots | bots get BOT\n  List your bots or inspect one by name or id.",
+  "bots get": "openmausbot bots get BOT\n  Read a bot's status, model, approvals and conversation count.",
+  threads: "openmausbot threads list BOT\n  List a bot's conversations.",
+  "threads list": "openmausbot threads list BOT\n  Read conversation titles and ids for a bot.",
+  computers: "openmausbot computers list\n  List the computers used by your bots.",
+  "computers list": "openmausbot computers list\n  Read computer assignments and the cloud states your session can see.",
   channels: "openmausbot channels\n  Your rooms (group chats) and who is in them.",
   models: "openmausbot models\n  The engines and the models each offers (use them as INSTANCE/MODEL).",
   messages: `openmausbot messages TARGET [--limit 30]\n  The latest messages of a conversation (at most 200).
@@ -113,6 +120,7 @@ export interface HeadlessOptions {
 
 const VERBS: Record<string, (ctx: VerbContext) => Promise<VerbOutcome>> = {
   doctor, bots: list, channels: list, models: list, messages, send, "send-channel": send, run: runVerb, wait: waitVerb,
+  status: workspaceStatus, "bots get": botDetails, "threads list": listThreads, "computers list": listComputers,
   interrupt, "new-bot": newBot, "new-channel": newChannel, "set-model": setModel, edit, export: exportVerb, events: eventsVerb,
   "team apply": teamApplyVerb, "team export": teamExportVerb, "engine set": engineVerb, "engine list": engineVerb, connect: connectVerb,
   "token create": tokenVerb, "token list": tokenVerb, "token revoke": tokenVerb,

@@ -97,7 +97,7 @@ export function MemberApps() {
                 {apps.map((app) => (
                   <div key={app.slug} data-app-tile={app.slug} className="flex min-w-0 flex-col rounded-xl px-2 py-2 transition-colors hover:bg-raised/40">
                     <div className="flex items-center gap-3">
-                      <ServiceIcon card={{ logo: null, domain: null, label: app.name }} className="size-10 shrink-0 rounded-[8px]" />
+                      <ServiceIcon card={{ logo: null, label: app.name }} className="size-10 shrink-0 rounded-[8px]" />
                       <div className="flex min-w-0 flex-1 items-center gap-1.5">
                         <span className="truncate text-[14px] font-semibold leading-5 text-ink">{app.name}</span>
                         {app.connected && !app.reconnect && <Check size={13} strokeWidth={2.5} className="shrink-0 text-success" aria-label={t("apps.connected")} />}

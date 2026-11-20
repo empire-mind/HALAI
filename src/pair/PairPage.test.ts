@@ -11,12 +11,13 @@ import en from "../locales/en.json";
 import type { EnvironmentDescriptor } from "../lib/session";
 
 const code = "ABCD-EFGH-JK23";
+const origin = "https://halai.example";
 const render = (initialCode: string | null) => { f.effects = []; return renderToStaticMarkup(createElement(PairPage, { initialCode })); };
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
 let replaced: string[];
 beforeEach(() => {
   f.pair.mockReset(); replaced = [];
-  vi.stubGlobal("location", { replace: (url: string) => replaced.push(url) });
+  vi.stubGlobal("location", { origin, search: "", replace: (url: string) => replaced.push(url) });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -31,11 +32,11 @@ it("opening My Cloud from the app needs no click and no code to type", async () 
   vi.stubGlobal("window", { ogb: { workspaces: {} } });
   f.pair.mockResolvedValue({ ok: true });
   const html = render(code);
-  expect(html).toContain("Connecting to this MausBot…");
+  expect(html).toContain("Connecting to this HALAI…");
   expect(html).not.toContain("Pairing code"); expect(html).not.toContain("<form");
   f.effects[0](); await flush();
   expect(f.pair).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ code }));
-  expect(replaced).toEqual(["/"]);
+  expect(replaced).toEqual([`${origin}/`]);
 });
 
 it("a code that no longer works falls back to the form, with the reason", async () => {
@@ -54,7 +55,7 @@ it("a browser keeps the code in the form for the person to confirm", () => {
 
 it("My Cloud says where its connection starts, never 'the code shown on the server'", () => {
   const cloud = pairIntro({ mode: "code", sent: false, email: "", cloudHome: true });
-  expect(cloud).toContain(`choose ${en["cloudHome.connect"]} in the MausBot app`);
+  expect(cloud).toContain(`choose ${en["cloudHome.connect"]} in the HALAI app`);
   expect(cloud).toContain(`Settings → ${en["settings.section.cloudAccount"]}`);
   expect(cloud).toContain("on your Plan page");
   expect(cloud).not.toContain("from the server");
@@ -67,7 +68,7 @@ it("a team's Cloud is called by the team's name, a person's own Cloud My Cloud",
   expect(pairTitle(descriptor({ cloudHome: true, cloudTeam: true }), "code")).toBe("Acme Labs");
   expect(pairTitle(descriptor({ cloudHome: true }), "code")).toBe("My Cloud");
   expect(pairTitle(descriptor({}), "email")).toBe("Sign in to Acme Labs");
-  expect(pairTitle(null, "code")).toBe("Connect to this MausBot");
+  expect(pairTitle(null, "code")).toBe("Connect to this HALAI");
 });
 
 it("names a wrong kind of code instead of letting it be sent as a wrong one", () => {
@@ -98,7 +99,7 @@ it("asks for the code first, with email sign-in as a link below, and says how to
   expect(html).toContain(en["pair.notEncrypted"].replace("'", "&#x27;"));
   expect(html).toContain(en["pair.fromLink"]);
   expect(html).toContain("openmausbot://pair?address=http%3A%2F%2F203.0.113.9%3A8799&amp;code=ABCD-EFGH-JK23");
-  expect(html).toContain("npx openmausbot pair");
+  expect(html).toContain("openmausbot pair");
   expect(html.indexOf("<form")).toBeLessThan(html.indexOf(en["pair.code"]));
 });
 

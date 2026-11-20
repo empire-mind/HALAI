@@ -7,8 +7,11 @@ import { setTimeout as delay } from "node:timers/promises";
 
 export const CHROME_PATH = process.env.OMB_CDP_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 
+type PausedRequest = { requestId: string; request: { url: string; method: string } };
+
 export interface HeadlessPage {
   send: (method: string, params?: object) => Promise<any>;
+  onRequestPaused: (handler: (params: PausedRequest) => void) => void;
   /** The expression's value, awaited when it is a promise. */
   evaluate: (expression: string) => Promise<any>;
   /** Waits until `condition` (an expression) is true, or throws after `timeoutMs`. */
@@ -19,10 +22,14 @@ export interface HeadlessPage {
 }
 
 export async function openHeadlessChrome(profile: string): Promise<HeadlessPage> {
-  const chrome = spawn(CHROME_PATH, ["--headless=new", "--disable-gpu", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--use-mock-keychain",
+  const chrome = spawn(CHROME_PATH, ["--headless=new", "--disable-gpu", "--disable-background-networking", "--hide-scrollbars", "--no-first-run", "--no-default-browser-check", "--use-mock-keychain",
     `--user-data-dir=${profile}`, "--remote-debugging-port=0", "about:blank"], { stdio: "ignore" });
+  let launchError: Error | undefined;
+  chrome.once("error", (error) => { launchError = error; });
   let port = "";
-  for (let i = 0; i < 100 && !port; i++) {
+  for (let i = 0; i < 200 && !port; i++) {
+    if (launchError) throw launchError;
+    if (chrome.exitCode !== null || chrome.signalCode !== null) throw new Error("Chrome exited during startup");
     await delay(100);
     try { port = readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0]!.trim(); } catch {}
   }
@@ -32,8 +39,17 @@ export async function openHeadlessChrome(profile: string): Promise<HeadlessPage>
   await new Promise((done, fail) => { socket.onopen = done; socket.onerror = fail; });
   let next = 0;
   const waiting = new Map<number, { done: (value: any) => void; fail: (error: Error) => void }>();
+  let onRequestPaused: ((params: PausedRequest) => void) | undefined;
   socket.onmessage = (event) => {
     const message = JSON.parse(String(event.data));
+    if (message.method === "Fetch.requestPaused") {
+      const params = message.params;
+      if (typeof params?.requestId === "string" && typeof params.request?.url === "string"
+          && typeof params.request?.method === "string") {
+        onRequestPaused?.(params);
+      }
+      return;
+    }
     const call = waiting.get(message.id);
     if (!call) return;
     waiting.delete(message.id);
@@ -47,6 +63,7 @@ export async function openHeadlessChrome(profile: string): Promise<HeadlessPage>
   const evaluate = async (expression: string) => (await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true })).result?.value;
   return {
     send,
+    onRequestPaused(handler) { onRequestPaused = handler; },
     evaluate,
     async until(condition, timeoutMs = 60_000) {
       const end = Date.now() + timeoutMs;

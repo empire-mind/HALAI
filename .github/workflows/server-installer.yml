@@ -1,7 +1,7 @@
 name: Server installer
 
 # The self-hosted server's installer (deploy/install.sh) on a stock ubuntu-24.04 runner, as a person runs it on a fresh
-# server: shellcheck, its checks against made-up servers, then the checks and a real install of the published image
+# server: shellcheck, its checks against made-up servers, then the checks and a real install of a pinned image
 # (deploy/e2e/run.sh). It talks to no production service and needs no secret.
 on:
   pull_request:
@@ -36,11 +36,7 @@ jobs:
           persist-credentials: false
       - name: shellcheck
         run: shellcheck deploy/install.sh deploy/update-runner.sh deploy/e2e/run.sh
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3 # v6.0.10
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-          cache: pnpm
+      - uses: ./.github/actions/setup-pnpm
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
@@ -56,14 +52,17 @@ jobs:
             sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
             echo "free for Docker now: $(free_gb) GB"
           fi
-      - name: This checkout's server image, served from a registry on the runner
-        # Only an image with the hardened profile can run the bots' sandbox; until a release has it, the published
-        # image cannot show the installer turning the sandbox on, so this checkout's is built and installed instead.
+      - name: Choose the installer test image
+        # Exercise the published v0.1.170 image by digest when this checkout has no hardened profile.
+        # The installer unit tests cover release selection. The lifecycle test uses the same image on every run.
+        # Build the checkout on the runner when it can exercise the bots' sandbox.
         id: image
         run: |
           set -euo pipefail
           if ! grep -q 'OMB_IMAGE=server' Dockerfile; then
-            echo "this checkout's image has no hardened profile; installing the published release"
+            image=$(cat deploy/e2e/installer-reference-image.txt)
+            test -n "$image"
+            printf 'image=%s\n' "$image" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           docker run -d --name installer-registry -p 127.0.0.1:5000:5000 registry:2 >/dev/null

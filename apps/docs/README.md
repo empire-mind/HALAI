@@ -1,19 +1,17 @@
-# OpenMausBot documentation
+# HALAI website and documentation
 
-The public documentation site is a Next.js 16 + Fumadocs app. User-facing content lives in `content/docs`; the repository's top-level `docs` folder remains available for implementation notes and detailed platform records.
+The EmpireMind site and its 50 technical docs run in the existing Next.js and Fumadocs app. Marketing routes live in `app/(site)`. The docs source lives in `content/docs`.
 
-## Develop
+## Develop and verify
 
-From the repository root:
+Run from the repository root with Node.js 24 or newer and the repository's pnpm version.
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm docs:dev
 ```
 
-The site opens at `http://localhost:3000`.
-
-## Verify
+Open `http://localhost:3000` for the site and `/docs` for the technical reference.
 
 ```bash
 pnpm docs:build
@@ -21,31 +19,28 @@ pnpm --filter @openmausbot/docs types:check
 pnpm --filter @openmausbot/docs lint
 ```
 
-The changelog reads published releases from `milind-soni/OpenMausBot` plus the
-legacy updater archive, deduplicates them into one complete history, and caches
-the result for five minutes. If one repository is temporarily unavailable, the
-other still renders; if both fail, the page links directly to GitHub.
+## Site configuration
 
-## Deploy to Vercel
+Use `apps/docs` as the application root on the authorised EmpireMind publisher. The workspace lockfile and shared product identity live in the repository root. Give the build and runtime the same site origin.
 
-This deploys only the public documentation. It does not deploy the Electron app,
-local harness, credentials, agents, or user data. The changelog page uses Next.js
-incremental regeneration so published releases appear without a source commit.
+| Variable | Purpose |
+| --- | --- |
+| `HALAI_SITE_ORIGIN` | Public or staging HTTPS origin for sitemap entries and canonicals. Defaults to `http://127.0.0.1:3000` for local use. |
+| `HALAI_SITE_INDEXABLE` | Set to `1` with the approved public HTTPS origin to allow indexing. Preview builds disallow it by default. |
+| `HALAI_CONTACT_EMAIL` | Optional public HALAI business address. The rollout brief can open an email draft addressed to it. |
+| `HALAI_RELEASE_REVISION` | Full Git commit SHA stamped into `/release.json` at build time. Set it from the checked-out release commit. |
+| `GITHUB_RELEASES_TOKEN` | Optional server-side credential for the public HALAI release history, managed through the host's approved secret store. |
 
-Create a second Vercel project beside the existing `openmausbot.com` project:
+The changelog reads published releases from `empire-mind/HALAI` and caches the result for five minutes. If the list is empty or unavailable, the page links to the same release history on GitHub.
 
-1. Import the `milind-soni/OpenMausBot` repository.
-2. Set **Root Directory** to `apps/docs`.
-3. Keep the detected **Next.js** framework settings.
-4. Set the production branch to `main` and deploy.
-5. Add `docs.openmausbot.com` under **Settings → Domains**.
+Read `/release.json` on the published origin to match the site to its source commit before collecting sitemap, canonical and keyboard evidence.
 
-For an immediate changelog refresh after each desktop release, create a Vercel
-Deploy Hook for the production branch and save it in the GitHub repository as
-the `DOCS_DEPLOY_HOOK_URL` Actions secret. Without the optional hook, the next
-normal docs deployment still pulls the current published releases.
+Run the delivery checks from the repository root with the approved origin, full commit SHA and sitemap XML saved from the approved build.
 
-Vercel will build the Next.js docs app, publish every push to `main`, and create
-preview URLs for documentation pull requests. Keep `openmausbot.com` on the
-existing marketing project and add a Docs link there after the new domain is
-live.
+```bash
+node scripts/verify-halai-site.mjs "$HALAI_APPROVED_ORIGIN" "$HALAI_APPROVED_REVISION" "$HALAI_APPROVED_SITEMAP" all
+```
+
+Use `docs` or `marketing` to check the relevant routes when the publishers differ. The marketing check uses a fresh Chrome profile and presses Tab and Enter at 1440 and 390 px. Set `OMB_CDP_CHROME` to the browser binary when using a browser outside the default macOS Chrome installation. Retain the JSON with the publisher's release receipt. The signed commissioning and independent accessibility evidence are recorded against the same approved release.
+
+[HALAI release and REA coverage](../../docs/halai-release.md)

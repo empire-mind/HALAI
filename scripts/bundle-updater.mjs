@@ -3,7 +3,7 @@
 // then patched so an AppImage update keeps the path the user launches.
 import { build } from "esbuild";
 import { createRequire } from "node:module";
-import { readFile, writeFile } from "node:fs/promises";
+import { writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join, sep } from "node:path";
 
@@ -16,7 +16,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outfile = join(root, "electron/vendor/electron-updater.cjs");
 const entryPoint = require.resolve("electron-updater");
 
-await build({
+const { outputFiles: [bundle] } = await build({
   entryPoints: [entryPoint],
   // Keep source labels reproducible when an isolated worktree reuses the
   // identical node_modules tree through a symlink.
@@ -27,10 +27,11 @@ await build({
   format: "cjs",
   external: ["electron"],
   outfile,
+  write: false,
   logLevel: "info",
 });
 
 // Throws when upstream's shape moved, so a bundle that would silently break
 // AppImage launchers never reaches a release.
-await writeFile(outfile, patchOrganizationUpdater(patchMacUpdater(patchAppImageUpdater(await readFile(outfile, "utf8")))));
+await writeFile(outfile, patchOrganizationUpdater(patchMacUpdater(patchAppImageUpdater(bundle.text))));
 console.log("patched AppImage replacement, native Mac staging readiness and one-shot organisation relaunch");

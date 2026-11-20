@@ -164,6 +164,8 @@ describe("opening Settings on the phone pairing", () => {
 });
 
 describe("the ?desktop-settings=phone request", () => {
+  const origin = "https://halai.example";
+  const destination = (search: string) => pairedDestination(search, origin).href;
   it("is taken off the address, keeping everything else", () => {
     expect(takePhonePairingRequest("https://home.fly.dev/?desktop-settings=phone")).toBe("/");
     expect(takePhonePairingRequest("https://home.fly.dev/?a=1&desktop-settings=phone#x")).toBe("/?a=1#x");
@@ -180,19 +182,24 @@ describe("the ?desktop-settings=phone request", () => {
   });
 
   it("survives pairing, and nothing else does", () => {
-    expect(pairedDestination("?desktop-settings=phone&pair=open")).toBe("/?desktop-settings=phone&pair=open");
-    expect(pairedDestination("?desktop-settings=phone")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=phone&next=https://evil.example")).toBe("/?desktop-settings=phone");
-    expect(pairedDestination("?desktop-settings=workspaces")).toBe("/");
-    expect(pairedDestination("?next=//evil.example")).toBe("/");
-    expect(pairedDestination("")).toBe("/");
+    expect(destination("?desktop-settings=phone&pair=open")).toBe(`${origin}/?desktop-settings=phone&pair=open`);
+    expect(destination("?desktop-settings=phone")).toBe(`${origin}/?desktop-settings=phone`);
+    expect(destination("?desktop-settings=phone&next=https://elsewhere.example")).toBe(`${origin}/?desktop-settings=phone`);
+    expect(destination("?desktop-settings=workspaces")).toBe(`${origin}/`);
+    expect(destination("?next=//elsewhere.example")).toBe(`${origin}/`);
+    expect(destination("")).toBe(`${origin}/`);
   });
 
   it("keeps a linked thread through sign-in, and nothing else with it", () => {
-    expect(pairedDestination("?thread=t-1&bot=scout")).toBe("/?thread=t-1&bot=scout");
-    expect(pairedDestination("?thread=t%201&x=1")).toBe("/?thread=t+1");
-    expect(pairedDestination("?bot=scout")).toBe("/");
-    expect(pairedDestination("?thread=t-1&next=/settings")).toBe("/settings");
+    expect(destination("?thread=t-1&bot=scout")).toBe(`${origin}/?thread=t-1&bot=scout`);
+    expect(destination("?thread=t%201&x=1")).toBe(`${origin}/?thread=t+1`);
+    expect(destination("?bot=scout")).toBe(`${origin}/`);
+    expect(destination("?thread=t-1&next=/settings")).toBe(`${origin}/settings`);
+  });
+
+  it("normalises internal destinations before preventing a return to pairing", () => {
+    expect(destination("?next=/settings/../pair")).toBe(`${origin}/`);
+    expect(destination("?next=/docs/../settings%23section")).toBe(`${origin}/settings#section`);
   });
 });
 

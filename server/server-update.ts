@@ -15,9 +15,7 @@ import type { ServerUpdateOutcome, ServerUpdateReason, ServerUpdateRun, ServerUp
 import { appendAdminAction, type AdminActor } from "./admin-activity.ts";
 import { isNewerVersion, updateCommand, type InstallKind, type UpdateCheck } from "./update-check.ts";
 
-/** Where a Docker install mounts the two folders (deploy/install.sh's compose.yaml, update-runner.sh's override):
- * `request` (writable) and `status` (read-only). OMB_SERVER_UPDATE_DIR names another place. */
-export const SERVER_UPDATE_DIR = "/run/omb-update";
+/** The configured host runner's mount containing `request` (writable) and `status` (read-only). */
 export const SERVER_UPDATE_DIR_ENV = "OMB_SERVER_UPDATE_DIR";
 /** One request per five minutes; the runner on the host keeps its own, shorter gap. */
 export const REQUEST_GAP_MS = 5 * 60_000;

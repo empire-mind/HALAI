@@ -95,6 +95,10 @@ one of its conversations.
 | `doctor --host` | Checks this Linux machine can run the server and the bots' sandbox (below). |
 | `doctor --data [--fix] [--data-dir DIR]` | Checks this computer's data folder without the server; `--fix` applies the repairs that cannot lose data, while no server uses it ([self-hosting](self-hosting.md#the-doctor-checking-and-repairing-the-data)). |
 | `bots`, `channels`, `models` | Your bots and what each is doing, your rooms, the engines and the models each offers. |
+| `status --url URL` | Reads the named workspace and bot states. Bare `status` shows the local installation. |
+| `bots get BOT` | Reads one bot's status, model, approval mode and conversation count. Use its ID when names collide. |
+| `threads list BOT` | Lists a bot's conversation titles and IDs. |
+| `computers list` | Lists bot computer assignments and cloud state visible to the current session. |
 | `messages TARGET [--limit 30]` | The latest messages of a conversation. |
 | `send TARGET TEXT` | Sends one message and returns at once, to the conversation the bot or room has open. `--task new` starts a new conversation for it (`--title` names it, else the message's first line), and `--task ID` picks one. It says which conversation it went to. `--send-id ID` makes a retry safe: the same id never sends twice. |
 | `run TARGET TEXT` | Gives a bot or room one job and waits until it is done (below). |

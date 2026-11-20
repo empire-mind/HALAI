@@ -6,7 +6,7 @@ import type { AdminActor } from "../admin-activity.ts";
 import { serverVersion } from "../environment.ts";
 import { SERVER_ROOT } from "../proxy-paths.ts";
 import type { RequestAuth } from "../request-auth.ts";
-import { createServerUpdater, SERVER_UPDATE_DIR, SERVER_UPDATE_DIR_ENV, type ServerUpdater } from "../server-update.ts";
+import { createServerUpdater, SERVER_UPDATE_DIR_ENV, type ServerUpdater } from "../server-update.ts";
 import { createUpdateChecker, installKind, updateChannel, type UpdateCheck } from "../update-check.ts";
 import { PASS, type RouteHandler } from "./table.ts";
 
@@ -56,7 +56,7 @@ export function updateRouteDeps(where: {
   const install = installKind({ ...where, serverRoot: SERVER_ROOT });
   const channel = updateChannel();
   const check = createUpdateChecker({ current: serverVersion(), install, channel });
-  const dir = process.env[SERVER_UPDATE_DIR_ENV]?.trim() || (install === "docker" ? SERVER_UPDATE_DIR : undefined);
+  const dir = process.env[SERVER_UPDATE_DIR_ENV]?.trim() || undefined;
   const server = createServerUpdater({ dir, dataDir: where.dataDir, install, version: serverVersion(), check, activeTurns: where.activeTurns, followsStable: channel === "stable" });
   return { check, server, actor: where.actor };
 }

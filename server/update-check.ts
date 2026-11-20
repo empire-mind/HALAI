@@ -1,10 +1,10 @@
 // A self-hosted server cannot replace itself, so this only says whether a newer version exists and how this install is updated.
 import { existsSync } from "node:fs";
 import { join, sep } from "node:path";
+import { HALAI_PRODUCT } from "../shared/halai-product.ts";
 
-export const LATEST_RELEASE_URL = "https://api.github.com/repos/milind-soni/OpenMausBot/releases/latest";
-/** Written by .github/workflows/promote-stable.yml: the released version our own Clouds have run for 48 hours. */
-export const STABLE_CHANNEL_URL = "https://raw.githubusercontent.com/milind-soni/OpenMausBot/channels/stable.json";
+export const LATEST_RELEASE_URL = `https://api.github.com/repos/${HALAI_PRODUCT.owner}/${HALAI_PRODUCT.repo}/releases/latest`;
+export const STABLE_CHANNEL_URL = `https://raw.githubusercontent.com/${HALAI_PRODUCT.owner}/${HALAI_PRODUCT.repo}/channels/stable.json`;
 const CACHE_MS = 60 * 60_000;
 /** How long the last answer stands in when the channel cannot be read: an outage of GitHub is no reason to say nothing. */
 const STALE_MS = 24 * 60 * 60_000;
@@ -12,15 +12,6 @@ const STALE_MS = 24 * 60 * 60_000;
 /** "managed" is a hosted or Cloud server that is updated for its owner. "podman" is deploy/podman's Compose recipe;
  * "podman-service" the rootless service deploy/podman/install.sh writes, whose unit sets OMB_PODMAN_SERVICE. */
 export type InstallKind = "desktop" | "managed" | "docker" | "podman" | "podman-service" | "npm" | "git" | "unknown";
-
-/** Where deploy/podman/install.sh puts the install unless told otherwise. */
-export const PODMAN_SERVICE_DIR = "~/.local/share/openmausbot";
-
-/** The install's folder on the host, as the unit gives it in OMB_PODMAN_SERVICE (`~/…` or an absolute path). */
-export function podmanServiceDir(env: NodeJS.ProcessEnv = process.env): string {
-  const dir = env.OMB_PODMAN_SERVICE?.trim() ?? "";
-  return /^(?:~\/|\/)[A-Za-z0-9/._@-]+$/.test(dir) && !dir.split("/").includes("..") ? dir.replace(/\/+$/, "") : PODMAN_SERVICE_DIR;
-}
 
 /** `stable` follows the promoted version; `newest` follows every release, as soon as it is published. */
 export type UpdateChannel = "stable" | "newest";
@@ -30,20 +21,8 @@ export function updateChannel(env: NodeJS.ProcessEnv = process.env): UpdateChann
   return env.OMB_UPDATE_CHANNEL?.trim().toLowerCase() === "newest" ? "newest" : "stable";
 }
 
-/**
- * As docs/self-hosting.md and deploy/podman/README.md give them. `version` is the one the channel names: an npm install
- * is pinned to it, and a Docker install passes it to deploy/update.sh unless that is the stable one update.sh takes anyway.
- */
-export function updateCommand(install: InstallKind, target?: { version: string; stable: boolean }, env: NodeJS.ProcessEnv = process.env): { command: string; restart: boolean } | undefined {
-  const version = target && !target.stable ? ` --version ${target.version}` : "";
-  switch (install) {
-    case "docker": return { command: `git pull && ./update.sh${version}`, restart: false };
-    case "podman-service": return { command: `${podmanServiceDir(env)}/update.sh${version}`, restart: false };
-    case "podman": return { command: "git pull && cd deploy/podman && PODMAN_COMPOSE_PROVIDER=podman-compose podman compose --env-file .env -f compose.yaml up -d --build", restart: false };
-    case "npm": return { command: `npm install -g openmausbot@${target?.version ?? "latest"}`, restart: true };
-    case "git": return { command: "git pull && pnpm install", restart: true };
-    default: return undefined;
-  }
+export function updateCommand(install: InstallKind): { command: string; restart: boolean } | undefined {
+  return install === "git" ? { command: "git pull && pnpm install", restart: true } : undefined;
 }
 
 export function installKind(input: {
@@ -127,7 +106,7 @@ export function createUpdateChecker(options: {
     ...updateCommand(options.install),
   });
   const ask = (url: string) => fetchJson(url, {
-    headers: { accept: "application/vnd.github+json", "user-agent": "openmausbot-update-check" },
+    headers: { accept: "application/vnd.github+json", "user-agent": "halai-update-check" },
     signal: AbortSignal.timeout(8_000),
   });
 
@@ -162,7 +141,6 @@ export function createUpdateChecker(options: {
           latest: found.version,
           available: isNewerVersion(found.version, options.current),
           ...(found.releaseUrl ? { releaseUrl: found.releaseUrl } : {}),
-          ...updateCommand(options.install, { version: found.version, stable: promoted !== null }),
         };
         cached = lastGood = { at: now(), result };
         return result;

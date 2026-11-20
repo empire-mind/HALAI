@@ -19,7 +19,8 @@ jobs:
           node-version: 24
       - name: Shared terminal and authority regressions
         run: node --test electron/shared-computer-access.node-test.mjs
-      - uses: pnpm/action-setup@ff378ebe6b225b0680b81c1ad4498ae0d1d3a5e3
+      - name: Enable the pinned pnpm version
+        run: corepack enable pnpm
       - run: pnpm install --frozen-lockfile
       - name: Shared computer real connector
         run: pnpm exec vitest run server/shared-computers.e2e.test.ts

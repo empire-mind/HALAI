@@ -1,10 +1,7 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
 import { Provider } from '@/components/provider';
-import { appName, siteUrl } from '@/lib/shared';
+import { appName, indexable, siteUrl } from '@/lib/shared';
 import './global.css';
-
-const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -12,11 +9,12 @@ export const metadata: Metadata = {
     default: appName,
     template: `%s · ${appName}`,
   },
-  description: 'MausBot docs: install, configure and extend your local-first team of AI agents. MausBot is free and open source (Apache 2.0).',
+  description: 'HALAI by EmpireMind. Run your AI team in a workspace you control.',
+  robots: { index: indexable, follow: indexable },
   openGraph: {
     title: appName,
     siteName: appName,
-    description: 'Your own team of AI agents, in a chat app.',
+    description: 'Run your AI team in a workspace you control.',
     type: 'website',
   },
   icons: {
@@ -27,7 +25,7 @@ export const metadata: Metadata = {
 
 export default function Layout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en" className={inter.className} suppressHydrationWarning>
+    <html lang="en-AU" suppressHydrationWarning>
       <body className="flex min-h-screen flex-col">
         <Provider>{children}</Provider>
       </body>

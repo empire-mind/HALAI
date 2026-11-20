@@ -38,7 +38,13 @@ const featureRouteModules = ["data/routes.ts", "workspace-backup-http.ts", "clou
 const serverSource = [join(ROOT, "server", "index.ts"), ...routeModules, ...featureRouteModules]
   .map((file) => readFileSync(file, "utf8")).join("\n");
 const hooksSource = readFileSync(join(ROOT, "server", "webhook-ingress.ts"), "utf8");
-const hostedSource = readFileSync(join(ROOT, "enterprise", "server", "workspace-access.ts"), "utf8");
+const enterprisePresent = existsSync(join(ROOT, "enterprise"));
+const hostedSource = enterprisePresent
+  ? readFileSync(join(ROOT, "enterprise", "server", "workspace-access.ts"), "utf8")
+  : "";
+const hostedEntryRoutes = ["/api/auth/hosted/start", "/api/auth/hosted/callback"];
+const missingOptionalSource = (hit: string) =>
+  !enterprisePresent && /^(hosted-workspaces|enterprise-license)\.md: enterprise\//.test(hit);
 // Only constants named in the public handler's accepted-path guard are routes.
 // Outbound post("/api/handoff/...") calls belong to the identity service, not us.
 const hostedConstants = new Map([...hostedSource.matchAll(/const ([A-Z_]+) = "(\/api\/[^"\n]+)";/g)].map(match => [match[1]!, match[2]!]));
@@ -64,13 +70,13 @@ describe("docs/verification recipes cite things that exist", () => {
   it("cite source files that exist", () => {
     const refs = cited(/(?<![\w/.-])((?:scripts|server|src|shared|electron|companion|enterprise)\/[\w./-]+\.(?:ts|tsx|mjs|cjs|py))(?![\w/])/g);
     expect(refs.length).toBeGreaterThan(50);
-    expect([...new Set(refs.filter((hit) => !existsSync(join(ROOT, target(hit)))))]).toEqual([]);
+    expect([...new Set(refs.filter((hit) => !missingOptionalSource(hit) && !existsSync(join(ROOT, target(hit)))))]).toEqual([]);
   });
 
   it("cite test files that exist", () => {
     const refs = cited(/(?<![\w/.-])([\w./-]+\.test\.(?:ts|mjs))(?![\w/])/g);
     expect(refs.length).toBeGreaterThan(20);
-    expect([...new Set(refs.filter((hit) => !existsSync(join(ROOT, target(hit)))))]).toEqual([]);
+    expect([...new Set(refs.filter((hit) => !missingOptionalSource(hit) && !existsSync(join(ROOT, target(hit)))))]).toEqual([]);
   });
 
   it("cite API routes the server registers", () => {
@@ -88,11 +94,13 @@ describe("docs/verification recipes cite things that exist", () => {
       return source.includes(`"${prefix}`) || source.includes(`${prefix}/`)
         || routePatterns.some((pattern) => pattern.test(segments.map((segment) => PLACEHOLDER.test(segment) ? "x-1" : segment).join("/").replace(/^/, "/")));
     };
-    expect([...new Set(refs.filter((hit) => !registered(target(hit))))]).toEqual([]);
+    const missing = refs.filter((hit) => registered(target(hit)) === false
+      && (enterprisePresent || !hit.startsWith("hosted-workspaces.md: ") || !hostedEntryRoutes.includes(target(hit))));
+    expect([...new Set(missing)]).toEqual([]);
   });
 
   it("distinguishes delegated public routes from external identity backchannels", () => {
-    expect([...hostedPublicRoutes]).toEqual(["/api/auth/hosted/start", "/api/auth/hosted/callback"]);
+    expect([...hostedPublicRoutes]).toEqual(enterprisePresent ? hostedEntryRoutes : []);
     expect(hostedPublicRoutes.has("/api/handoff/consume")).toBe(false);
     expect(hostedPublicRoutes.has("/api/handoff/check")).toBe(false);
   });

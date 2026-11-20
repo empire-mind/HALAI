@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { closeSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { launchVerificationServer, runControlOmb, verificationServerEnvironment, type VerificationServer } from "../scripts/control-omb.ts";
 import { removeTempDir, waitForExit } from "./testing/cleanup.ts";
@@ -115,11 +115,8 @@ beforeAll(async () => {
   layer = mkdtempSync(join(tmpdir(), "omb-hosted-model-layer-"));
   mkdirSync(join(layer, "server"));
   writeFileSync(join(layer, "server/index.ts"), `
-    import { createWorkspaceAccess as create } from ${JSON.stringify(pathToFileURL(join(ROOT, "enterprise/server/workspace-access.ts")).href)};
+    export { createFixtureWorkspaceAccess as createWorkspaceAccess } from ${JSON.stringify(new URL("./testing/hosted-access-fixture.ts", import.meta.url).href)};
     export function register() { return { customer: "Hosted models fixture", features: ["admin"], expiresAt: null }; }
-    export function createWorkspaceAccess(options) {
-      return create({ ...options, fetchImpl: async () => { throw new Error("The model fixture must not contact a portal"); } });
-    }
   `);
   fixture = await launchVerificationServer({}, undefined, undefined, undefined,
     { dir: layer, licenseKey: "fixture-only" }, undefined, ["codex"]);
@@ -187,7 +184,7 @@ afterAll(async () => {
   if (layer) await removeTempDir(layer);
 });
 
-describe("hosted model policy in the full runtime", () => {
+describe("hosted model policy in the full runtime with a fixture access hook", () => {
   it("advertises only assignments and reconciles saved choices without changing conversation history", async () => {
     await expectCatalog(INITIAL);
     const health = await api("GET", "/api/health/hosted");

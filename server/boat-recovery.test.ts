@@ -139,10 +139,10 @@ async function load() {
   words = await import("../shared/cloud-computer-recovery.ts");
   journal = await import("./boat-delete-journal.ts");
 }
-function start() {
+function start(read?: Parameters<typeof recoveryModule.createBoatRecovery>[0]["read"]) {
   told = [];
   health = healthModule.createBoatHealth(now);
-  recovery = recoveryModule.createBoatRecovery({ cfg: () => cfg, tell: (owner, line) => told.push([owner, line]), log: () => {}, file, now, health, pollMs: 5, recheckMs: 20,
+  recovery = recoveryModule.createBoatRecovery({ cfg: () => cfg, tell: (owner, line) => told.push([owner, line]), log: () => {}, file, now, health, read, pollMs: 5, recheckMs: 20,
     setAsideRecheckMs: 20, stalled: () => false, autoReplace: () => autoOn, eligible: (owner) => !teamOwners.has(owner), personActive: (owner) => watched.has(owner),
     // One probe stands for the wait, so a restart that does not help is judged at once.
     readiness: { awaitAnswer: async (_cfg, boxId) => ((await boat.probeBoat(cfg, boxId)) === true ? { ok: true, waitedMs: 0 } : { ok: false, phase: "waking", waitedMs: 0 }) } });
@@ -577,15 +577,23 @@ describe("before a silent computer is restarted by itself", () => {
 
   it("with no other computer to compare against, it waits for five minutes of silence, looking again meanwhile", async () => {
     const { botId, box } = await botWith("ready");
+    recovery.close();
+    let checks = 0;
+    let beforeFiveMinutes: { state: string | undefined; stops: number } | undefined;
+    start(async (_cfg, boxId) => {
+      // This read follows the completed probe, so moving the clock cannot mark that probe as stalled.
+      if (++checks === 3) {
+        beforeFiveMinutes = { state: recovery.status(botId)?.state, stops: stops().length };
+        at += 5 * 60_000;
+      }
+      return boxes.find((candidate) => candidate.id === boxId) ?? null;
+    });
     commandStatus.set(box.id, 502);
     resumeAnswers.add(box.id);
     await boat.findBoat(cfg, botId);
     silentForAMinute(box.id);
-    await until(() => requests.filter((request) => request.path === `/boxes/${box.id}/commands`).length >= 3);
-    expect(recovery.status(botId)?.state).toBe("not-responding");
-    expect(stops()).toHaveLength(0);
-    at += 5 * 60_000;
     await until(() => recovery.status(botId)?.state === "restarted");
+    expect(beforeFiveMinutes).toEqual({ state: "not-responding", stops: 0 });
     expect(stops()).toHaveLength(1);
   });
 
